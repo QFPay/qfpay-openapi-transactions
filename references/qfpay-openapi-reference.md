@@ -67,6 +67,14 @@ Credentials:
 
 Use matching credentials and base URL from the same environment. Mixing QA, live-testing, and production credentials or endpoints commonly causes authentication or signature errors.
 
+Credential safety rules:
+
+- Treat `app_code` as a sensitive merchant identifier and `client_key` as a secret.
+- Do not put real `client_key` values in frontend code, mobile apps, repos, issues, PRs, logs, screenshots, or final replies.
+- Do not pass `client_key` as a plaintext command-line argument. Prefer no-echo prompts, environment variables, or a secret manager.
+- Treat `X-QF-SIGN` and Hosted Checkout `sign` as sensitive because they authorize the same parameter set.
+- If credentials leak, stop money-moving actions, rotate `client_key`, then resume calls.
+
 ## Signing
 
 Standard request signature:

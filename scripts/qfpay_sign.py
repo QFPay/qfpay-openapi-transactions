@@ -2,6 +2,7 @@
 """Generate QFPay signatures and cURL snippets without sending requests."""
 
 import argparse
+import getpass
 import hashlib
 import json
 import os
@@ -18,6 +19,59 @@ ENVIRONMENTS = {
     "production": "https://openapi-hk.qfapi.com",
     "prod": "https://openapi-hk.qfapi.com",
 }
+
+MASKED_PARAM_NAMES = {"app_code", "appcode", "mchid", "mchntid"}
+REDACTED_PARAM_NAMES = {
+    "auth_code",
+    "buyer_id",
+    "client_key",
+    "customer_id",
+    "email",
+    "id_no",
+    "idnumber",
+    "mobile",
+    "openid",
+    "phone",
+    "sub_openid",
+}
+
+
+def mask(value, visible=4):
+    text = "" if value is None else str(value)
+    if len(text) <= visible * 2:
+        return "<redacted>"
+    return f"{text[:visible]}...{text[-visible:]}"
+
+
+def is_redacted_param(name):
+    lowered = name.lower()
+    if lowered == "sign_type":
+        return False
+    return (
+        lowered in REDACTED_PARAM_NAMES
+        or "card" in lowered
+        or "key" in lowered
+        or "openid" in lowered
+        or "secret" in lowered
+        or "sign" in lowered
+        or "token" in lowered
+    )
+
+
+def display_params(params, show_sensitive):
+    if show_sensitive:
+        return dict(params)
+
+    display = {}
+    for key, value in params.items():
+        lowered = key.lower()
+        if lowered in MASKED_PARAM_NAMES:
+            display[key] = mask(value)
+        elif is_redacted_param(key):
+            display[key] = "<redacted>"
+        else:
+            display[key] = value
+    return display
 
 
 def parse_key_value(value):
@@ -91,10 +145,13 @@ def shell_join(parts):
 
 
 def build_form_curl(args, params, signature):
+    app_code = args.app_code if args.show_sensitive else mask(args.app_code)
+    qf_signature = signature if args.show_sensitive else "<redacted-signature>"
+    body_params = display_params(params, args.show_sensitive)
     headers = [
         "Content-Type: application/x-www-form-urlencoded",
-        f"X-QF-APPCODE: {args.app_code}",
-        f"X-QF-SIGN: {signature}",
+        f"X-QF-APPCODE: {app_code}",
+        f"X-QF-SIGN: {qf_signature}",
     ]
     if args.sign_type.upper() == "SHA256":
         headers.append("X-QF-SIGNTYPE: SHA256")
@@ -102,15 +159,15 @@ def build_form_curl(args, params, signature):
     command = ["curl", "-sS", "-X", args.method.upper(), build_url(args.base_url, args.path)]
     for header in headers:
         command.extend(["-H", header])
-    command.extend(["--data-raw", encoded_params(params)])
+    command.extend(["--data-raw", encoded_params(body_params)])
     return shell_join(command)
 
 
 def build_checkout_url(args, params, signature):
-    signed = dict(params)
-    signed["sign"] = signature
+    signed = display_params(params, args.show_sensitive)
+    signed["sign"] = signature if args.show_sensitive else "<redacted-signature>"
     ordered = [(key, signed[key]) for key in sorted(signed) if key != "sign"]
-    ordered.append(("sign", signature))
+    ordered.append(("sign", signed["sign"]))
     return build_url(args.base_url, args.path) + "?" + urlencode(ordered)
 
 
@@ -126,30 +183,47 @@ def main():
     parser.add_argument("--base-url", default=os.getenv("QFPAY_BASE_URL"), help="Override the environment base URL")
     parser.add_argument("--path", required=True, help="API path, e.g. /trade/v1/query")
     parser.add_argument("--method", default="POST", help="HTTP method for form cURL output")
-    parser.add_argument("--app-code", default=os.getenv("QFPAY_APP_CODE"))
-    parser.add_argument("--client-key", default=os.getenv("QFPAY_CLIENT_KEY"))
+    parser.add_argument("--app-code", default=os.getenv("QFPAY_APP_CODE"), help="QFPay app code. Prefer env or --prompt-app-code.")
+    parser.add_argument(
+        "--client-key",
+        default=os.getenv("QFPAY_CLIENT_KEY"),
+        help="QFPay signing key. Prefer env or --prompt-client-key; command-line values may be visible.",
+    )
+    parser.add_argument("--prompt-app-code", action="store_true", help="Prompt for app code instead of putting it in shell history.")
+    parser.add_argument("--prompt-client-key", action="store_true", help="Prompt for client key without terminal echo.")
+    parser.add_argument("--show-sensitive", action="store_true", help="Print usable signature, cURL, or checkout URL. Default redacts them.")
     parser.add_argument("--sign-type", choices=["MD5", "SHA256"], default="MD5")
     parser.add_argument("--params-json", help="JSON object or @file.json with request parameters")
     parser.add_argument("--param", action="append", default=[], type=parse_key_value, help="Request parameter as KEY=VALUE")
     parser.add_argument("--keep-empty", action="store_true", help="Keep empty values in signing input")
     args = parser.parse_args()
 
+    if args.prompt_app_code:
+        args.app_code = input("QFPAY_APP_CODE: ").strip()
+    if args.prompt_client_key:
+        args.client_key = getpass.getpass("QFPAY_CLIENT_KEY: ")
+
     if not args.client_key:
-        raise SystemExit("client key is required via --client-key or QFPAY_CLIENT_KEY")
+        raise SystemExit("client key is required via --prompt-client-key, --client-key, or QFPAY_CLIENT_KEY")
     if args.mode == "form" and not args.app_code:
-        raise SystemExit("app code is required for form mode via --app-code or QFPAY_APP_CODE")
+        raise SystemExit("app code is required for form mode via --prompt-app-code, --app-code, or QFPAY_APP_CODE")
+    if any(arg == "--client-key" or arg.startswith("--client-key=") for arg in sys.argv[1:]):
+        print("warning: --client-key may be captured in shell history or process lists; prefer --prompt-client-key", file=sys.stderr)
 
     base_url = args.base_url or ENVIRONMENTS[args.env]
     params = load_params(args)
     signature = make_signature(params, args.client_key, args.sign_type)
+    output_params = display_params(params, args.show_sensitive)
     result = {
         "mode": args.mode,
         "environment": args.env,
         "base_url": base_url,
         "sign_type": args.sign_type.upper(),
-        "canonical_without_client_key": canonical_string(params),
-        "signature": signature,
-        "encoded_params": encoded_params(params),
+        "sensitive_output": args.show_sensitive,
+        "redaction_note": "" if args.show_sensitive else "signature, app identifiers, and sensitive params are redacted; use --show-sensitive only in a safe local terminal",
+        "canonical_without_client_key": canonical_string(output_params),
+        "signature": signature if args.show_sensitive else "<redacted-signature>",
+        "encoded_params": encoded_params(output_params),
     }
 
     if args.mode == "checkout":

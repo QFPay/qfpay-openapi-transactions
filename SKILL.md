@@ -1,6 +1,6 @@
 ---
 name: qfpay-openapi-transactions
-description: "处理 QFPay OpenAPI 交易集成与操作。Use when Codex needs to create QFPay payment orders for MPM, CPM, Web, WAP/H5, In-App, Hosted Checkout, Element SDK, FPS, cards, Apple Pay; 查询交易状态；发起退款；执行冲正、关闭、撤销、预授权扣款或解冻；处理 QFPay 回调验签；选择 pay_type；生成 QFPay 请求签名。"
+description: "处理 QFPay OpenAPI 交易集成与操作。Use when Codex needs to create QFPay payment orders for MPM, CPM, Web, WAP/H5, In-App, Hosted Checkout, Element SDK, FPS, cards, Apple Pay; 查询交易状态；发起退款；执行冲正、关闭、撤销、预授权扣款或解冻；处理 QFPay 回调验签；选择 pay_type；生成 QFPay 请求签名；安全处理 app_code/client_key 凭据。"
 ---
 
 # QFPay OpenAPI 交易
@@ -14,7 +14,7 @@ description: "处理 QFPay OpenAPI 交易集成与操作。Use when Codex needs 
 执行任何 QFPay 任务时按这个流程走：
 
 1. 确认操作类型：下单、Hosted Checkout、Element Intent、查询、退款、冲正、close、预授权扣款、预授权解冻、回调验签或 POS SDK 调用。
-2. 确认环境和凭证：`app_code`、`client_key`、可选 `mchid`。只有 QFPay 发放或通道要求时才传 `mchid`。
+2. 确认环境和凭证：`app_code`、`client_key`、可选 `mchid`。只在当前操作中使用凭证，输出必须脱敏。只有 QFPay 发放或通道要求时才传 `mchid`。
 3. 涉及生产环境、扣款、退款、撤销、解冻等资金动作时，先确认环境、金额、币种、原订单号和动作意图。
 4. 构造参数并删除 `null`、空字符串字段，再生成签名。
 5. 发送请求后保存 `out_trade_no` 和 `syssn`。遇到处理中、回调不确定或网络异常时，用 `/trade/v1/query` 查询到最终状态。
@@ -28,6 +28,17 @@ description: "处理 QFPay OpenAPI 交易集成与操作。Use when Codex needs 
 | 生产 | Production | `https://openapi-hk.qfapi.com` |
 
 不要使用旧示例或泛化示例里的 `https://api.qfapi.com`。
+
+## 凭据安全
+
+把 `app_code` 当作敏感商户标识，把 `client_key` 当作密钥。不要把真实 `app_code`、`client_key`、`X-QF-SIGN`、Hosted Checkout `sign`、`.env` 或含凭证的请求脚本提交到仓库。
+
+Agent 执行时：
+
+- 优先用交互输入、环境变量或密钥管理系统读取凭证；不要把明文 `client_key` 写进命令行参数、代码块、文档、issue、PR 或最终回复。
+- 如果用户在对话里给了凭证，只用于本次明确请求；后续回复只给脱敏标识，不重复明文。
+- 日志和最终结果可以保留环境、金额、订单号、`syssn`、业务状态码和脱敏响应；必须去掉 `client_key`、签名、付款码、卡号、身份字段和其他客户敏感信息。
+- 生产环境凭证只能打生产域名，QA/线上测试/生产凭证不要混用；发现凭证进仓库、日志或公开对话时，立即停止资金动作并要求轮换 `client_key`。
 
 ## 请求规则
 
@@ -61,17 +72,19 @@ Hosted Checkout 是 GET URL：`/checkstand/#/?...`。它用 query 参数 `appcod
 
 ## 签名辅助脚本
 
-用 [scripts/qfpay_sign.py](scripts/qfpay_sign.py) 生成签名、form body 和 cURL。脚本只输出，不会发送请求。
+用 [scripts/qfpay_sign.py](scripts/qfpay_sign.py) 生成签名、form body 和 cURL。脚本只输出，不会发送请求；默认脱敏 `X-QF-SIGN`、`app_code`、付款码和常见客户敏感参数。
 
 ```bash
 python3 scripts/qfpay_sign.py \
   --env live-testing \
   --path /trade/v1/query \
-  --app-code "$QFPAY_APP_CODE" \
-  --client-key "$QFPAY_CLIENT_KEY" \
+  --prompt-app-code \
+  --prompt-client-key \
   --param syssn=20230423000200020088888888 \
   --param mchid=YOUR_MCHID
 ```
+
+只有在本地安全终端需要可执行 cURL/URL 时才加 `--show-sensitive`。不要把 `--show-sensitive` 输出贴进日志或提交。
 
 Hosted Checkout URL 示例：
 
@@ -80,8 +93,8 @@ python3 scripts/qfpay_sign.py \
   --mode checkout \
   --env qa \
   --path /checkstand/#/ \
-  --app-code "$QFPAY_APP_CODE" \
-  --client-key "$QFPAY_CLIENT_KEY" \
+  --prompt-app-code \
+  --prompt-client-key \
   --sign-type SHA256 \
   --param paysource=remotepay_checkout \
   --param txamt=1000 \

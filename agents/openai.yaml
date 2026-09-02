@@ -1,4 +1,4 @@
 interface:
   display_name: "QFPay OpenAPI Transactions"
-  short_description: "Operate QFPay payments, queries, refunds"
-  default_prompt: "Use $qfpay-openapi-transactions 编写或执行 QFPay 下单、查询、退款或冲正流程。"
+  short_description: "Operate QFPay payments safely"
+  default_prompt: "Use $qfpay-openapi-transactions 编写或执行 QFPay 下单、查询、退款或冲正流程，并安全处理 app_code/client_key。"
