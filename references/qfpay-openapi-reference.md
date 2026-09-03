@@ -1,6 +1,6 @@
 # QFPay OpenAPI Reference
 
-Snapshot date: 2026-09-02. Verify current behavior against the QFPay documentation before production go-live.
+Snapshot date: 2026-09-03. Verify current behavior against the QFPay documentation before production go-live.
 
 Source URLs:
 
@@ -17,6 +17,7 @@ Source URLs:
 - https://sdk.qfapi.com/integration/online-shop/integration-by-use-case/web-payment
 - https://sdk.qfapi.com/integration/online-shop/integration-by-use-case/wap-payment
 - https://sdk.qfapi.com/integration/online-shop/integration-by-use-case/in-app-payment
+- https://sdk.qfapi.com/integration/online-shop/integration-by-payment-type/alipay/alipay-wap-h5-payments
 - https://sdk.qfapi.com/integration/online-shop/checkout-integration/checkout
 - https://sdk.qfapi.com/integration/online-shop/checkout-integration/payment-element
 - https://sdk.qfapi.com/integration/common-api/transaction-enquiry
@@ -31,6 +32,7 @@ Source URLs:
 - Environments and credentials
 - Signing
 - Common payment parameters
+- Complete pay_type list
 - Payment scenario matrix
 - Payment flow details
 - Hosted Checkout
@@ -134,6 +136,58 @@ Most `POST /trade/v1/payment` calls share these parameters:
 
 Supported currencies listed by QFPay: `AED`, `CNY`, `EUR`, `HKD`, `IDR`, `JPY`, `MMK`, `MYR`, `SGD`, `THB`, `USD`, `CAD`, `AUD`.
 
+## Complete pay_type List
+
+The 34 pay types below match the official Payment Types page, checked on 2026-09-03. Actual availability still depends on the merchant's QFPay onboarding configuration.
+
+| Channel | pay_type | Scenario | Recommended entry/result |
+| --- | --- | --- | --- |
+| Aggregated CPM | `800008` | WeChat, Alipay, UNIONPAY Quick Pass, PayMe customer-presented code | `/trade/v1/payment` with `auth_code` |
+| Alipay | `800101` | MPM overseas merchants | `/trade/v1/payment`, returns `qrcode` |
+| Alipay | `800108` | CPM overseas and HK merchants | `/trade/v1/payment` with `auth_code` |
+| Alipay | `801101` | Online WEB overseas merchants | `/trade/v1/payment`, returns `pay_url` |
+| Alipay | `801107` | Online WAP/H5 overseas merchants | `/trade/v1/payment`, returns `pay_url` |
+| Alipay | `801110` | In-App overseas merchants | `/trade/v1/payment`, returns `pay_params` |
+| AlipayHK | `801501` | MPM HK merchants | `/trade/v1/payment`, returns `qrcode` |
+| AlipayHK | `801510` | In-App HK merchants | `/trade/v1/payment`, returns `pay_params` |
+| AlipayHK | `801512` | Online WAP HK merchants | `/trade/v1/payment`, returns `pay_url` |
+| AlipayHK | `801514` | Online WEB HK merchants | `/trade/v1/payment`, returns `pay_url` |
+| WeChat Pay | `800201` | MPM / Web QR overseas and HK merchants | `/trade/v1/payment`, returns `qrcode` |
+| WeChat Pay | `800208` | CPM overseas and HK merchants | `/trade/v1/payment` with `auth_code` |
+| WeChat Pay | `800207` | JSAPI / Official Account payment | `/trade/v1/payment` with `sub_openid` |
+| WeChat Pay | `800212` | H5 third-party mobile browser | `/trade/v1/payment` with `extend_info` |
+| WeChat Pay | `800210` | In-App overseas and HK merchants | `/trade/v1/payment`, returns `pay_params` |
+| WeChat Pay | `800213` | Mini Program payment | `/trade/v1/payment` with `sub_openid` |
+| PayMe | `805801` | MPM HK merchants | `/trade/v1/payment`, returns `qrcode` |
+| PayMe | `805808` | CPM HK merchants | `/trade/v1/payment` with `auth_code` |
+| PayMe | `805814` | Online WEB HK merchants | `/trade/v1/payment`, returns `pay_url` |
+| PayMe | `805812` | Online WAP HK merchants | `/trade/v1/payment`, returns `pay_url` |
+| UNIONPAY Quick Pass | `800701` | MPM | `/trade/v1/payment`, returns `qrcode` |
+| UNIONPAY Quick Pass | `800708` | CPM | `/trade/v1/payment` with `auth_code` |
+| UNIONPAY | `800712` | WAP HK merchants | `/trade/v1/payment`, returns `pay_url` |
+| UNIONPAY | `800714` | PC-Web HK merchants | `/trade/v1/payment`, returns `pay_url` |
+| FPS | `802001` | MPM HK merchants | `/trade/v1/payment`, returns `qrcode` |
+| FPS | `802010` | Merchant Presented App | `/trade/v1/payment`, returns `pay_params`/launch URL |
+| Octopus | `803701` | Dynamic QRC MPM HK merchants | `/trade/v1/payment`, returns `qrcode` |
+| Octopus | `803712` | WAP HK merchants | `/trade/v1/payment`, returns `pay_url` |
+| Octopus | `803714` | PC-Web HK merchants | `/trade/v1/payment`, returns `pay_url` |
+| Visa/Mastercard | `802801` | Online Payments | Hosted Checkout or Element SDK |
+| Visa/Mastercard | `802808` | Offline Payments | POS SDK/card terminal |
+| Apple Pay | `806527` | Online Payments | Hosted Checkout or Element SDK |
+| UnionPay Card | `806708` | Offline Payments | POS SDK/card terminal |
+| American Express | `806808` | Offline Payments | POS SDK/card terminal |
+
+The official Payment Types page notes that `801101` transaction amount must be greater than 1 HKD.
+
+The 4 pay types below appear on payment-specific pages but not in the official Payment Types master table. Confirm merchant enablement and current availability with QFPay before use.
+
+| Channel | pay_type | Source page/scenario | Key requirement |
+| --- | --- | --- | --- |
+| Alipay | `800107` | Alipay Service Window H5 | Requires `openid` |
+| WeChat Pay HK | `801008` | CPM direct settlement for HK merchants | Requires `auth_code` |
+| PayMe | `805810` | In-App HK | App/wallet launch flow |
+| UnionPay | `800710` | In-App | App/wallet launch flow |
+
 ## Payment Scenario Matrix
 
 All rows below use `POST /trade/v1/payment` unless noted.
@@ -171,6 +225,8 @@ All rows below use `POST /trade/v1/payment` unless noted.
 | WeChat In-App | `800210` | Wallet SDK prerequisites; optional real-name `extend_info` | `pay_params` |
 | Alipay In-App overseas | `801110` | `goods_name`, `return_url`; optional `seller_id` | `pay_params` |
 | Alipay In-App HK | `801510` | `goods_name`, `return_url`; optional `seller_id` | `pay_params` |
+| PayMe In-App HK | `805810` | Confirm enablement before use | `pay_params` or `pay_url` |
+| UnionPay In-App | `800710` | Confirm enablement before use | `pay_params` or `pay_url` |
 | FPS app-to-app | `802010` | Common params; launch returned URL in bank app | `pay_params` |
 | Visa/Mastercard online | `802801` | Use Hosted Checkout or Element SDK | Checkout/Element result |
 | Visa/Mastercard offline | `802808` | Usually POS SDK/card terminal flow | POS result |
@@ -178,7 +234,7 @@ All rows below use `POST /trade/v1/payment` unless noted.
 | UnionPay card offline | `806708` | Usually POS SDK/card terminal flow | POS result |
 | American Express offline | `806808` | Usually POS SDK/card terminal flow | POS result |
 
-QFPay documentation also mentions `805810` PayMe In-App and `800710` UnionPay In-App in the In-App use-case page. Verify enablement with QFPay before using those codes.
+`800107`, `801008`, `805810`, and `800710` come from payment-specific pages and are not in the official Payment Types master table. Confirm with QFPay before production use.
 
 ## Payment Flow Details
 

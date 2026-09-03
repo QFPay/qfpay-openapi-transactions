@@ -13,6 +13,8 @@ description: "处理 QFPay OpenAPI 交易集成与操作。Use when Codex needs 
 
 回答某个钱包或卡组织“有哪些 `pay_type`”时，先在 reference 里检索该品牌名和数字段；如果用户要求最新/生产接入，必须再核对官方 `https://sdk.qfapi.com/integration/api-reference/paytypes`，不要只凭场景章节回答。
 
+修改 pay_type 文档或做全量通道审计后，运行 `python3 scripts/check_paytype_coverage.py`，确认中英文 reference 都覆盖官方主表和专项页面中的 pay_type。
+
 执行任何 QFPay 任务时按这个流程走：
 
 1. 确认操作类型：下单、Hosted Checkout、Element Intent、查询、退款、冲正、close、预授权扣款、预授权解冻、回调验签或 POS SDK 调用。

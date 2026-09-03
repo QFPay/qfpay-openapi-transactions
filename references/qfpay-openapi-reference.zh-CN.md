@@ -1,6 +1,6 @@
 # QFPay OpenAPI 中文参考
 
-整理日期：2026-09-02。生产上线前仍需以 QFPay 当前官方文档和商户开通配置为准。
+整理日期：2026-09-03。生产上线前仍需以 QFPay 当前官方文档和商户开通配置为准。
 
 官方来源：
 
@@ -17,6 +17,7 @@
 - https://sdk.qfapi.com/integration/online-shop/integration-by-use-case/web-payment
 - https://sdk.qfapi.com/integration/online-shop/integration-by-use-case/wap-payment
 - https://sdk.qfapi.com/integration/online-shop/integration-by-use-case/in-app-payment
+- https://sdk.qfapi.com/integration/online-shop/integration-by-payment-type/alipay/alipay-wap-h5-payments
 - https://sdk.qfapi.com/integration/online-shop/checkout-integration/checkout
 - https://sdk.qfapi.com/integration/online-shop/checkout-integration/payment-element
 - https://sdk.qfapi.com/integration/common-api/transaction-enquiry
@@ -31,6 +32,7 @@
 - 环境和凭证
 - 签名
 - 通用支付参数
+- 完整 pay_type 清单
 - 支付场景和 pay_type
 - 各类下单流程
 - Hosted Checkout
@@ -133,6 +135,58 @@ def qfpay_sign(params, client_key, sign_type="MD5"):
 
 QFPay 文档列出的币种：`AED`、`CNY`、`EUR`、`HKD`、`IDR`、`JPY`、`MMK`、`MYR`、`SGD`、`THB`、`USD`、`CAD`、`AUD`。
 
+## 完整 pay_type 清单
+
+以下 34 个 pay_type 对照官方 Payment Types 页面（2026-09-03 核对）。商户是否能实际使用取决于 QFPay 开通配置。
+
+| 支付渠道 | pay_type | 场景 | 推荐入口/返回 |
+| --- | --- | --- | --- |
+| 聚合 CPM | `800008` | WeChat、Alipay、UNIONPAY Quick Pass、PayMe 用户付款码 | `/trade/v1/payment`，传 `auth_code` |
+| Alipay | `800101` | MPM 海外商户 | `/trade/v1/payment`，返回 `qrcode` |
+| Alipay | `800108` | CPM 海外及香港商户 | `/trade/v1/payment`，传 `auth_code` |
+| Alipay | `801101` | Online WEB 海外商户 | `/trade/v1/payment`，返回 `pay_url` |
+| Alipay | `801107` | Online WAP/H5 海外商户 | `/trade/v1/payment`，返回 `pay_url` |
+| Alipay | `801110` | In-App 海外商户 | `/trade/v1/payment`，返回 `pay_params` |
+| AlipayHK | `801501` | MPM 香港商户 | `/trade/v1/payment`，返回 `qrcode` |
+| AlipayHK | `801510` | In-App 香港商户 | `/trade/v1/payment`，返回 `pay_params` |
+| AlipayHK | `801512` | Online WAP 香港商户 | `/trade/v1/payment`，返回 `pay_url` |
+| AlipayHK | `801514` | Online WEB 香港商户 | `/trade/v1/payment`，返回 `pay_url` |
+| WeChat Pay | `800201` | MPM / Web QR 海外及香港商户 | `/trade/v1/payment`，返回 `qrcode` |
+| WeChat Pay | `800208` | CPM 海外及香港商户 | `/trade/v1/payment`，传 `auth_code` |
+| WeChat Pay | `800207` | JSAPI / 公众号支付 | `/trade/v1/payment`，传 `sub_openid` |
+| WeChat Pay | `800212` | H5 第三方手机浏览器 | `/trade/v1/payment`，传 `extend_info` |
+| WeChat Pay | `800210` | In-App 海外及香港商户 | `/trade/v1/payment`，返回 `pay_params` |
+| WeChat Pay | `800213` | Mini Program 小程序 | `/trade/v1/payment`，传 `sub_openid` |
+| PayMe | `805801` | MPM 香港商户 | `/trade/v1/payment`，返回 `qrcode` |
+| PayMe | `805808` | CPM 香港商户 | `/trade/v1/payment`，传 `auth_code` |
+| PayMe | `805814` | Online WEB 香港商户 | `/trade/v1/payment`，返回 `pay_url` |
+| PayMe | `805812` | Online WAP 香港商户 | `/trade/v1/payment`，返回 `pay_url` |
+| UNIONPAY Quick Pass | `800701` | MPM | `/trade/v1/payment`，返回 `qrcode` |
+| UNIONPAY Quick Pass | `800708` | CPM | `/trade/v1/payment`，传 `auth_code` |
+| UNIONPAY | `800712` | WAP 香港商户 | `/trade/v1/payment`，返回 `pay_url` |
+| UNIONPAY | `800714` | PC-Web 香港商户 | `/trade/v1/payment`，返回 `pay_url` |
+| FPS | `802001` | MPM 香港商户 | `/trade/v1/payment`，返回 `qrcode` |
+| FPS | `802010` | Merchant Presented App | `/trade/v1/payment`，返回 `pay_params`/拉起 URL |
+| Octopus | `803701` | Dynamic QRC MPM 香港商户 | `/trade/v1/payment`，返回 `qrcode` |
+| Octopus | `803712` | WAP 香港商户 | `/trade/v1/payment`，返回 `pay_url` |
+| Octopus | `803714` | PC-Web 香港商户 | `/trade/v1/payment`，返回 `pay_url` |
+| Visa/Mastercard | `802801` | Online Payments | Hosted Checkout 或 Element SDK |
+| Visa/Mastercard | `802808` | Offline Payments | POS SDK/卡终端 |
+| Apple Pay | `806527` | Online Payments | Hosted Checkout 或 Element SDK |
+| UnionPay Card | `806708` | Offline Payments | POS SDK/卡终端 |
+| American Express | `806808` | Offline Payments | POS SDK/卡终端 |
+
+官方 Payment Types 页还备注：`801101` 交易金额必须大于 1 HKD。
+
+以下 4 个 pay_type 来自专项页面，但不在官方 Payment Types 主表中。使用前必须向 QFPay 确认商户开通和当前可用性。
+
+| 支付渠道 | pay_type | 来源页面/场景 | 关键要求 |
+| --- | --- | --- | --- |
+| Alipay | `800107` | Alipay Service Window H5 | 需要 `openid` |
+| WeChat Pay HK | `801008` | CPM 直清香港商户 | 需要 `auth_code` |
+| PayMe | `805810` | In-App 香港 | App/钱包拉起流程 |
+| UnionPay | `800710` | In-App | App/钱包拉起流程 |
+
 ## 支付场景和 pay_type
 
 以下场景默认使用 `POST /trade/v1/payment`。
@@ -170,6 +224,8 @@ QFPay 文档列出的币种：`AED`、`CNY`、`EUR`、`HKD`、`IDR`、`JPY`、`M
 | 微信 In-App | `800210` | 微信开放平台和 SDK 前置配置 | `pay_params` |
 | 支付宝 In-App 海外 | `801110` | `goods_name`、`return_url`，可选 `seller_id` | `pay_params` |
 | 支付宝 In-App 香港 | `801510` | `goods_name`、`return_url`，可选 `seller_id` | `pay_params` |
+| PayMe In-App 香港 | `805810` | 使用前确认开通 | `pay_params` 或 `pay_url` |
+| UnionPay In-App | `800710` | 使用前确认开通 | `pay_params` 或 `pay_url` |
 | FPS App-to-App | `802010` | 通用参数；用返回 URL 拉起银行 App | `pay_params` |
 | Visa/Mastercard Online | `802801` | 使用 Hosted Checkout 或 Element SDK | Checkout/Element 结果 |
 | Visa/Mastercard Offline | `802808` | 通常是 POS SDK/卡终端流程 | POS 结果 |
@@ -177,7 +233,7 @@ QFPay 文档列出的币种：`AED`、`CNY`、`EUR`、`HKD`、`IDR`、`JPY`、`M
 | 银联卡 Offline | `806708` | 通常是 POS SDK/卡终端流程 | POS 结果 |
 | American Express Offline | `806808` | 通常是 POS SDK/卡终端流程 | POS 结果 |
 
-In-App use-case 页面还提到 `805810` PayMe In-App 和 `800710` UnionPay In-App。使用前必须向 QFPay 确认商户是否开通。
+`800107`、`801008`、`805810`、`800710` 来自专项页面，不在官方 Payment Types 主表中；生产使用前必须向 QFPay 确认。
 
 ## 各类下单流程
 

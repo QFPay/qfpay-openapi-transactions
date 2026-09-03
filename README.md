@@ -16,6 +16,7 @@
 - `references/qfpay-openapi-reference.zh-CN.md`：中文交易操作参考。
 - `references/qfpay-openapi-reference.md`：英文交易操作参考。
 - `scripts/qfpay_sign.py`：生成签名和 cURL 示例，不会主动发送请求，默认脱敏签名、app code 和常见敏感参数。
+- `scripts/check_paytype_coverage.py`：检查中英文参考是否覆盖官方和专项页面里的 pay_type。
 - `agents/openai.yaml`：Agent UI 元数据。
 
 ## 快速使用
@@ -36,3 +37,11 @@ python3 scripts/qfpay_sign.py \
 默认输出会脱敏 `X-QF-SIGN`、`app_code`、付款码和常见客户敏感参数。只有在本地安全终端需要可执行 cURL/URL 时才加 `--show-sensitive`。
 
 不要提交真实 `app_code`、`client_key`、`.env`、签名或接口响应里的敏感数据。
+
+## 覆盖检查
+
+更新 QFPay 文档后运行：
+
+```bash
+python3 scripts/check_paytype_coverage.py
+```
