@@ -164,6 +164,8 @@ All rows below use `POST /trade/v1/payment` unless noted.
 | WeChat H5 | `800212` | `extend_info.scene_info.h5_info`, `spbill_create_ip` | `pay_url` |
 | UnionPay WAP HK | `800712` | Optional `return_url` | `pay_url` |
 | PayMe WAP HK | `805812` | Optional `return_url`, `notify_url` | `pay_url` |
+| Octopus WAP HK | `803712` | Recommended `return_url`, `notify_url` | `pay_url` |
+| Octopus PC-Web HK | `803714` | Optional `return_url` | `pay_url` |
 | WeChat JSAPI | `800207` | `sub_openid`; OAuth/openid flow first | `pay_params` |
 | WeChat Mini Program | `800213` | `sub_openid` | `pay_params` |
 | WeChat In-App | `800210` | Wallet SDK prerequisites; optional real-name `extend_info` | `pay_params` |
@@ -202,13 +204,15 @@ Return handling:
 
 ### Web Payment
 
-Use for desktop or browser checkout QR flows. Pay types include WeChat Web QR `800201`, Alipay Web `801101`/`801514`, UnionPay Web `800714`, and PayMe Web `805814`.
+Use for desktop or browser checkout QR flows. Pay types include WeChat Web QR `800201`, Alipay Web `801101`/`801514`, UnionPay Web `800714`, PayMe Web `805814`, and Octopus PC-Web `803714`.
 
 Return handling: use `pay_url` or `qrcode` depending on wallet. For AlipayHK Web, QFPay notes that merchants commonly embed the returned QR/payment URL in the merchant page or an iframe.
 
 ### WAP/H5 Payment
 
 Use in mobile browsers such as Safari, Chrome, or Edge. Avoid relying on social app in-app browsers because external wallet invocation may be blocked.
+
+Common pay types include WeChat H5 `800212`, Alipay WAP `801107`/`801512`, UnionPay WAP `800712`, PayMe WAP `805812`, and Octopus WAP `803712`.
 
 Recommended fields: `return_url` for customer redirect and `notify_url` for backend confirmation. Always verify final result server-side; frontend redirects are not enough.
 

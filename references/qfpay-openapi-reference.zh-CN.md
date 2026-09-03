@@ -163,6 +163,8 @@ QFPay 文档列出的币种：`AED`、`CNY`、`EUR`、`HKD`、`IDR`、`JPY`、`M
 | 微信 H5 | `800212` | `extend_info.scene_info.h5_info`、`spbill_create_ip` | `pay_url` |
 | 银联 WAP 香港 | `800712` | 可选 `return_url` | `pay_url` |
 | PayMe WAP 香港 | `805812` | 可选 `return_url`、`notify_url` | `pay_url` |
+| Octopus WAP 香港 | `803712` | 推荐 `return_url`、`notify_url` | `pay_url` |
+| Octopus PC-Web 香港 | `803714` | 可选 `return_url` | `pay_url` |
 | 微信 JSAPI | `800207` | 先 OAuth 拿 `sub_openid` | `pay_params` |
 | 微信小程序 | `800213` | `sub_openid` | `pay_params` |
 | 微信 In-App | `800210` | 微信开放平台和 SDK 前置配置 | `pay_params` |
@@ -199,13 +201,15 @@ In-App use-case 页面还提到 `805810` PayMe In-App 和 `800710` UnionPay In-A
 
 ### Web 支付
 
-用于桌面或普通浏览器收银台。常见 pay_type：微信 Web QR `800201`、支付宝 Web `801101`/`801514`、银联 Web `800714`、PayMe Web `805814`。
+用于桌面或普通浏览器收银台。常见 pay_type：微信 Web QR `800201`、支付宝 Web `801101`/`801514`、银联 Web `800714`、PayMe Web `805814`、Octopus PC-Web `803714`。
 
 返回可能是 `pay_url` 或 `qrcode`。支付宝香港 Web 通常把返回的二维码/支付 URL 嵌入商户页面或 iframe。
 
 ### WAP/H5 支付
 
 用于 Safari、Chrome、Edge 等手机浏览器。不要依赖社交 App 内置浏览器，因为外部钱包拉起可能被限制。
+
+常见 pay_type：微信 H5 `800212`、支付宝 WAP `801107`/`801512`、银联 WAP `800712`、PayMe WAP `805812`、Octopus WAP `803712`。
 
 建议传 `return_url` 做用户跳转，传 `notify_url` 做后端确认。前端跳转结果不能作为最终支付结果。
 

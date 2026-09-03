@@ -11,6 +11,8 @@ description: "处理 QFPay OpenAPI 交易集成与操作。Use when Codex needs 
 
 英文参考仍保留在 [references/qfpay-openapi-reference.md](references/qfpay-openapi-reference.md)，用于和英文官方文档术语对照。
 
+回答某个钱包或卡组织“有哪些 `pay_type`”时，先在 reference 里检索该品牌名和数字段；如果用户要求最新/生产接入，必须再核对官方 `https://sdk.qfapi.com/integration/api-reference/paytypes`，不要只凭场景章节回答。
+
 执行任何 QFPay 任务时按这个流程走：
 
 1. 确认操作类型：下单、Hosted Checkout、Element Intent、查询、退款、冲正、close、预授权扣款、预授权解冻、回调验签或 POS SDK 调用。
