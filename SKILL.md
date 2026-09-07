@@ -56,6 +56,7 @@ Hosted Checkout 是 GET URL：`/checkstand/#/?...`。它用 query 参数 `appcod
 
 ## 操作入口
 
+- MCP Server：优先用 `scripts/qfpay_mcp_server.py` 暴露工具给支持 MCP 的 Agent。默认 `execute=false` 只返回脱敏签名预览；真正请求 QFPay 时显式传 `execute=true`。生产环境必须加 `confirm_production=true`；退款、冲正、close、预授权扣款和解冻必须加 `confirm_funds_action=true`。
 - 下单：`POST /trade/v1/payment`。适用于 MPM 动态码、CPM 付款码、Web QR、WAP/H5、钱包 In-App、WeChat JSAPI、小程序、FPS App-to-App 等。
 - Hosted Checkout：`GET /checkstand/#/?...&sign=...`。跳转到 QFPay 托管收银台。
 - Element SDK Intent：`POST /payment_element/v1/create_payment_intent`，前端再用 QFPay Element SDK 完成支付。
