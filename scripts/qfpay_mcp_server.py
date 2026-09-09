@@ -39,6 +39,8 @@ ENV_ALIASES = {
     "qa": "qa",
     "test": "live-testing",
     "live-testing": "live-testing",
+    "gray": "gray",
+    "grey": "gray",
     "production": "production",
     "prod": "production",
 }
@@ -51,7 +53,7 @@ def schema(properties, required=()):
 COMMON_AUTH_FIELDS = {
     "env": {
         "type": "string",
-        "enum": ["qa", "live-testing", "production"],
+        "enum": ["qa", "live-testing", "gray", "production"],
         "description": "QFPay environment. Defaults to QFPAY_ENV or live-testing.",
     },
     "app_code": {
@@ -71,7 +73,7 @@ COMMON_AUTH_FIELDS = {
     "confirm_production": {
         "type": "boolean",
         "default": False,
-        "description": "Required when execute=true and env=production.",
+        "description": "Required when execute=true and env=gray or production.",
     },
 }
 
@@ -326,8 +328,8 @@ def resolve_context(args):
 def check_execution_flags(tool_name, env, args):
     if not args.get("execute", False):
         return
-    if env == "production" and not args.get("confirm_production", False):
-        raise ValueError("confirm_production=true is required to execute against production")
+    if env in {"gray", "production"} and not args.get("confirm_production", False):
+        raise ValueError("confirm_production=true is required to execute against gray or production")
     if tool_name in MONEY_MUTATION_TOOLS and not args.get("confirm_funds_action", False):
         raise ValueError("confirm_funds_action=true is required for this funds action")
 
@@ -647,7 +649,7 @@ def initialize_result(params):
         "instructions": (
             "Use execute=false for signed previews and execute=true to call QFPay. "
             "Credentials come from QFPAY_APP_CODE/QFPAY_CLIENT_KEY or tool arguments. "
-            "Production execution requires confirm_production=true; refunds, reversals, close, "
+            "Gray and production execution require confirm_production=true; refunds, reversals, close, "
             "authtrade, and unfreeze also require confirm_funds_action=true."
         ),
     }
@@ -758,6 +760,17 @@ def self_test():
     dumped = json.dumps(payment)
     assert "CLIENT_KEY_FOR_TEST" not in dumped
     assert payment["execute"] is False
+    gray = TOOL_HANDLERS["qfpay_payment"](
+        {
+            "env": "gray",
+            "app_code": "APP_CODE_FOR_TEST",
+            "client_key": "CLIENT_KEY_FOR_TEST",
+            "pay_type": "802001",
+            "txamt": 100,
+            "out_trade_no": "MCP_GRAY_SELF_TEST",
+        }
+    )
+    assert gray["base_url"] == "https://gray-openapi-hk.qfapi.com"
     print("mcp server self-test ok")
 
 

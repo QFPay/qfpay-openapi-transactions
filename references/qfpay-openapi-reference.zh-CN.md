@@ -1,6 +1,6 @@
 # QFPay OpenAPI 中文参考
 
-整理日期：2026-09-03。生产上线前仍需以 QFPay 当前官方文档和商户开通配置为准。
+整理日期：2026-09-09。生产上线前仍需以 QFPay 当前官方文档和商户开通配置为准。
 
 官方来源：
 
@@ -47,15 +47,18 @@
 
 ## 环境和凭证
 
-本集成只使用以下三个 base URL，除非 QFPay 明确发放商户专用 endpoint：
+本集成只使用以下四个 base URL，除非 QFPay 明确发放商户专用 endpoint：
 
 | 业务名称 | 官方英文名 | Base URL | 用途 |
 | --- | --- | --- | --- |
 | QA | Sandbox | `https://openapi-int.qfapi.com` | 模拟交易、开发、联调。不会扣真实资金。 |
 | 线上测试 | Live Testing | `https://test-openapi-hk.qfapi.com` | 用测试账号跑真实支付流程，不结算。如果使用真实支付方式测试，应立即退款。 |
+| 灰度 | Gray | `https://gray-openapi-hk.qfapi.com` | QFPay 指定灰度/预发布验证环境；使用前确认凭证和资金属性。 |
 | 生产 | Production | `https://openapi-hk.qfapi.com` | 真实交易、真实结算、对账。 |
 
 不要使用旧示例或泛化示例里的 `https://api.qfapi.com`。
+
+官方 Environments 页面目前列出 Production、Live Testing、Sandbox 三个公开环境；灰度域名来自 QFPay 指定接入信息，使用前确认该商户凭证是否已开通。
 
 凭证：
 
@@ -65,7 +68,7 @@
 | `client_key` | 签名密钥。只能放服务端或安全密钥管理系统。 |
 | `mchid` | 可选商户/门店标识。只有 QFPay 发放或通道要求时才传；未发放时请求参数和签名串都不要包含。 |
 
-环境和凭证必须匹配。QA、线上测试、生产的凭证和域名混用通常会导致认证或签名错误。
+环境和凭证必须匹配。QA、线上测试、灰度、生产的凭证和域名混用通常会导致认证或签名错误。
 
 凭据安全规则：
 

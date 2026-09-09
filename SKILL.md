@@ -23,12 +23,13 @@ description: "处理 QFPay OpenAPI 交易集成与操作。Use when Codex needs 
 4. 构造参数并删除 `null`、空字符串字段，再生成签名。
 5. 发送请求后保存 `out_trade_no` 和 `syssn`。遇到处理中、回调不确定或网络异常时，用 `/trade/v1/query` 查询到最终状态。
 
-环境只能使用这三个 base URL，除非 QFPay 单独发商户专用 endpoint：
+环境只能使用这四个 base URL，除非 QFPay 单独发商户专用 endpoint。灰度环境按 QFPay 指定凭证使用，资金动作按生产相邻环境处理：
 
 | 业务名称 | 官方英文名 | Base URL |
 | --- | --- | --- |
 | QA | Sandbox | `https://openapi-int.qfapi.com` |
 | 线上测试 | Live Testing | `https://test-openapi-hk.qfapi.com` |
+| 灰度 | Gray | `https://gray-openapi-hk.qfapi.com` |
 | 生产 | Production | `https://openapi-hk.qfapi.com` |
 
 不要使用旧示例或泛化示例里的 `https://api.qfapi.com`。
@@ -42,7 +43,7 @@ Agent 执行时：
 - 优先用交互输入、环境变量或密钥管理系统读取凭证；不要把明文 `client_key` 写进命令行参数、代码块、文档、issue、PR 或最终回复。
 - 如果用户在对话里给了凭证，只用于本次明确请求；后续回复只给脱敏标识，不重复明文。
 - 日志和最终结果可以保留环境、金额、订单号、`syssn`、业务状态码和脱敏响应；必须去掉 `client_key`、签名、付款码、卡号、身份字段和其他客户敏感信息。
-- 生产环境凭证只能打生产域名，QA/线上测试/生产凭证不要混用；发现凭证进仓库、日志或公开对话时，立即停止资金动作并要求轮换 `client_key`。
+- QA、线上测试、灰度、生产凭证只能打各自环境域名，不要混用；发现凭证进仓库、日志或公开对话时，立即停止资金动作并要求轮换 `client_key`。
 
 ## 请求规则
 
@@ -56,7 +57,7 @@ Hosted Checkout 是 GET URL：`/checkstand/#/?...`。它用 query 参数 `appcod
 
 ## 操作入口
 
-- MCP Server：优先用 `scripts/qfpay_mcp_server.py` 暴露工具给支持 MCP 的 Agent。默认 `execute=false` 只返回脱敏签名预览；真正请求 QFPay 时显式传 `execute=true`。生产环境必须加 `confirm_production=true`；退款、冲正、close、预授权扣款和解冻必须加 `confirm_funds_action=true`。
+- MCP Server：优先用 `scripts/qfpay_mcp_server.py` 暴露工具给支持 MCP 的 Agent。默认 `execute=false` 只返回脱敏签名预览；真正请求 QFPay 时显式传 `execute=true`。灰度和生产环境必须加 `confirm_production=true`；退款、冲正、close、预授权扣款和解冻必须加 `confirm_funds_action=true`。
 - 下单：`POST /trade/v1/payment`。适用于 MPM 动态码、CPM 付款码、Web QR、WAP/H5、钱包 In-App、WeChat JSAPI、小程序、FPS App-to-App 等。
 - Hosted Checkout：`GET /checkstand/#/?...&sign=...`。跳转到 QFPay 托管收银台。
 - Element SDK Intent：`POST /payment_element/v1/create_payment_intent`，前端再用 QFPay Element SDK 完成支付。
@@ -116,6 +117,7 @@ python3 scripts/qfpay_sign.py \
 ```bash
 --env qa
 --env live-testing
+--env gray
 --env production
 ```
 

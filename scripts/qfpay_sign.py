@@ -16,6 +16,8 @@ ENVIRONMENTS = {
     "sandbox": "https://openapi-int.qfapi.com",
     "live-testing": "https://test-openapi-hk.qfapi.com",
     "test": "https://test-openapi-hk.qfapi.com",
+    "gray": "https://gray-openapi-hk.qfapi.com",
+    "grey": "https://gray-openapi-hk.qfapi.com",
     "production": "https://openapi-hk.qfapi.com",
     "prod": "https://openapi-hk.qfapi.com",
 }
@@ -178,7 +180,7 @@ def main():
         "--env",
         choices=sorted(ENVIRONMENTS),
         default=os.getenv("QFPAY_ENV", "live-testing"),
-        help="QFPay environment alias. QA maps to Sandbox/openapi-int.",
+        help="QFPay environment alias. QA maps to Sandbox/openapi-int; gray maps to gray-openapi-hk.",
     )
     parser.add_argument("--base-url", default=os.getenv("QFPAY_BASE_URL"), help="Override the environment base URL")
     parser.add_argument("--path", required=True, help="API path, e.g. /trade/v1/query")

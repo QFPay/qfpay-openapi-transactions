@@ -8,6 +8,7 @@
 | --- | --- |
 | QA | `https://openapi-int.qfapi.com` |
 | 线上测试 | `https://test-openapi-hk.qfapi.com` |
+| 灰度 | `https://gray-openapi-hk.qfapi.com` |
 | 生产 | `https://openapi-hk.qfapi.com` |
 
 ## 目录
@@ -61,7 +62,7 @@ python3 scripts/qfpay_sign.py \
 }
 ```
 
-工具默认 `execute=false`，只返回脱敏签名预览；需要真正请求 QFPay 时传 `execute=true`。生产环境还必须传 `confirm_production=true`；退款、冲正、close、预授权扣款和解冻还必须传 `confirm_funds_action=true`。
+工具默认 `execute=false`，只返回脱敏签名预览；需要真正请求 QFPay 时传 `execute=true`。灰度和生产环境还必须传 `confirm_production=true`；退款、冲正、close、预授权扣款和解冻还必须传 `confirm_funds_action=true`。
 
 如果本机 Python 报 `CERTIFICATE_VERIFY_FAILED`，先安装/修复 Python CA 证书，或在 MCP 客户端环境里指定 CA bundle：
 

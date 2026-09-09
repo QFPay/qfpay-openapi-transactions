@@ -1,6 +1,6 @@
 # QFPay OpenAPI Reference
 
-Snapshot date: 2026-09-03. Verify current behavior against the QFPay documentation before production go-live.
+Snapshot date: 2026-09-09. Verify current behavior against the QFPay documentation before production go-live.
 
 Source URLs:
 
@@ -53,11 +53,14 @@ Base URLs:
 | --- | --- | --- | --- |
 | QA | Sandbox | `https://openapi-int.qfapi.com` | Simulated development/testing. Does not deduct real funds. |
 | 线上测试 | Live Testing | `https://test-openapi-hk.qfapi.com` | Real wallet flow with test accounts. No settlement; refund immediately if real payment methods are used. |
+| 灰度 | Gray | `https://gray-openapi-hk.qfapi.com` | QFPay-designated gray/pre-release validation endpoint. Confirm credentials and funds behavior before use. |
 | 生产 | Production | `https://openapi-hk.qfapi.com` | Live payments and settlement. |
 
 The official English page uses `Sandbox`; many integrations refer to that same environment as `QA`. Treat QA/Sandbox as the `openapi-int` environment unless QFPay gives a merchant-specific QA URL.
 
-Use only the three base URLs above for this integration unless QFPay explicitly issues a merchant-specific endpoint. Ignore older or generic examples such as `https://api.qfapi.com`.
+The official Environments page currently lists three public environments: Production, Live Testing, and Sandbox. The gray endpoint above comes from QFPay-designated integration information; confirm merchant credentials are enabled before use.
+
+Use only the four base URLs above for this integration unless QFPay explicitly issues a merchant-specific endpoint. Ignore older or generic examples such as `https://api.qfapi.com`.
 
 Credentials:
 
@@ -67,7 +70,7 @@ Credentials:
 | `client_key` | Secret used for signatures. Keep server-side only. |
 | `mchid` | Optional merchant/store identifier. Include only if QFPay issued it or the channel requires it. If not issued, omit it from both payload and signature. |
 
-Use matching credentials and base URL from the same environment. Mixing QA, live-testing, and production credentials or endpoints commonly causes authentication or signature errors.
+Use matching credentials and base URL from the same environment. Mixing QA, live-testing, gray, and production credentials or endpoints commonly causes authentication or signature errors.
 
 Credential safety rules:
 
