@@ -1,0 +1,31 @@
+name: Verify QFPay payment skills
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: python3 -m py_compile scripts/*.py
+      - run: python3 scripts/check_contract_freshness.py
+      - run: python3 scripts/check_paytype_coverage.py
+      - run: python3 scripts/check_skill_release.py
+      - run: python3 scripts/check_evals.py
+      - run: python3 scripts/qfpay_mcp_server.py --self-test
+      - run: python3 -m unittest discover -s tests -v
+      - run: node --check bin/qfpay.js
+      - run: node --check templates/hosted-checkout-node/server.js
+      - run: node --check templates/mpm-node/server.js
+      - run: python3 scripts/build_release_manifest.py --check
+      - run: python3 scripts/check_public_release.py --preview
+      - run: npm pack --dry-run

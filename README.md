@@ -1,85 +1,73 @@
-# QFPay OpenAPI Transactions Skill
+# QFPay Payment Skills
 
-这是一个面向 Codex/Agent 的 QFPay OpenAPI 交易操作 skill。它整理了下单、查询、退款、撤销、冲正、关闭、预授权和回调验签等常用交易流程。
+這個 repository 是 QFPay Developer Agent Enablement MVP：一組可獨立觸發的 Skills、可安裝的 `qfpay` developer CLI、Sandbox templates，以及 local read-only stdio MCP。它不是 Remote MCP，亦不包含 merchant credential 或 Production payment execution。
 
-## 环境
+## 安全邊界
 
-| 环境 | Base URL |
+- 預設 environment 是 Sandbox/QA。Agent 不得自行將 profile 切至 Production。
+- `client_key` 只能由 backend secret manager/Vault/KMS 使用；不可放進 frontend、repo、log、Agent context、MCP argument 或普通 CLI flag。
+- local MCP 只提供 docs、pay_type 和 Transaction Enquiry preview/由 host 明確授權的 QA query；沒有 payment、checkout signed URL、refund、reversal、close 或 pre-authorisation tools。
+- Remote MCP、OAuth 2.1、merchant/store scope、Approval Center、Vault/KMS broker、rate limit、audit trail 與 Streamable HTTP 尚未交付。因此不可宣稱 external/Production ready。
+
+## 安裝與開始
+
+這個 package 已具備 npm CLI manifest（`@qfpay/cli`），但尚未配置公開 registry/release signing；在 repository 內測試可用：
+
+```bash
+npm install
+npm exec -- qfpay --version
+npm exec -- qfpay agent setup
+npm exec -- qfpay docs search "refund timeout"
+npm exec -- qfpay docs /integration/common-api/transaction-enquiry
+npm exec -- qfpay transaction get --out-trade-no ORDER_1001
+npm exec -- qfpay test signature
+```
+
+CLI 需要 Python 3.10+。如 Python 不是 `python3`/`python`，設定 `QFPAY_PYTHON` 指向其可執行檔。`qfpay agent setup --agent auto|codex|claude-code|cursor` 只輸出各 host 可採用的 secret-free local MCP fragment，不會寫入 host config 或 credential；請依各 host 目前官方說明選擇設定檔位置。`qfpay agent doctor` 驗證 Skill、Plugin、contract、CLI release 結構，並僅偵測（不讀取）已存在的 host 目錄。
+
+## Skills
+
+| Skill | 用途 |
 | --- | --- |
-| QA | `https://openapi-int.qfapi.com` |
-| 线上测试 | `https://test-openapi-hk.qfapi.com` |
-| 灰度 | `https://gray-openapi-hk.qfapi.com` |
-| 生产 | `https://openapi-hk.qfapi.com` |
+| `qfpay-integration-planner` | 選擇 online、in-store、POS/ECR 或 kiosk integration。 |
+| `qfpay-payment-best-practices` | 共通 security、state、Idempotency、funds-action 規則。 |
+| `qfpay-auth-and-signing` | server-side credential、MD5/SHA256、Callback/Checkout signing。 |
+| `qfpay-webhooks-and-enquiry` | Callback、Transaction Enquiry、UNKNOWN 與 fulfilment。 |
+| `qfpay-docs` | contract、endpoint、pay_type 及 freshness 查證。 |
+| `qfpay-go-live-review` | UAT、monitoring、reconciliation 與 Production readiness。 |
 
-## 目录
+`SKILL.md` 是相容 router；新安裝優先使用 `skills/` 內的細分 Skill。版本與 discovery metadata 在 [`.well-known/skills/index.json`](.well-known/skills/index.json)。
 
-- `SKILL.md`：skill 入口和使用流程。
-- `references/qfpay-openapi-reference.zh-CN.md`：中文交易操作参考。
-- `references/qfpay-openapi-reference.md`：英文交易操作参考。
-- `scripts/qfpay_sign.py`：生成签名和 cURL 示例，不会主动发送请求，默认脱敏签名、app code 和常见敏感参数。
-- `scripts/qfpay_mcp_server.py`：本地 stdio MCP server，提供下单、查询、退款、冲正、close、预授权和 pay_type 查询工具。
-- `scripts/check_paytype_coverage.py`：检查中英文参考是否覆盖官方和专项页面里的 pay_type。
-- `agents/openai.yaml`：Agent UI 元数据。
-
-## 快速使用
-
-优先让 Agent 阅读 `SKILL.md` 和中文参考文档，再根据目标环境、`app_code`、`client_key`、支付方式和金额执行操作。真实凭证只用于当前操作，回复和日志必须脱敏。
-
-生成查询接口签名和 cURL 示例：
+## CLI 與測試
 
 ```bash
-python3 scripts/qfpay_sign.py \
-  --env qa \
-  --path /trade/v1/query \
-  --prompt-app-code \
-  --prompt-client-key \
-  --param syssn=20260902281000020000000015
+qfpay init hosted-checkout --language node --output ./qfpay-checkout
+qfpay init mpm --language node --output ./qfpay-mpm
+qfpay lint ./qfpay-checkout
+qfpay callback verify --body-file callback.json --signature "$X_QF_SIGN" --prompt-client-key
+qfpay callback replay --body-file callback.json --signature "$X_QF_SIGN" --prompt-client-key
+qfpay callback listen --port 3001 --prompt-client-key
+qfpay mcp serve
 ```
 
-默认输出会脱敏 `X-QF-SIGN`、`app_code`、付款码和常见客户敏感参数。只有在本地安全终端需要可执行 cURL/URL 时才加 `--show-sensitive`。
+templates 只產生 Sandbox-first server-side 程式碼與 `.env.example`，不會輸出實際 secret。`qfpay callback replay/listen` 只保存 hashed idempotency material 和 event fingerprint，不回顯或持久化 raw payload；listener 永遠只綁定 `127.0.0.1` 並且只支援 Sandbox。`qfpay_sign.py` 預設遮罩 signature 和敏感值；輸出可用的敏感材料需由本機 operator 設定 `QFPAY_ALLOW_SENSITIVE_OUTPUT=1`。
 
-不要提交真实 `app_code`、`client_key`、`.env`、签名或接口响应里的敏感数据。
-
-## MCP Server
-
-本仓库也可以作为本地 stdio MCP server 使用。建议把凭证放在 MCP 客户端的本地环境变量配置里，不要写进仓库。
-
-示例配置：
-
-```json
-{
-  "mcpServers": {
-    "qfpay-openapi-transactions": {
-      "command": "python3",
-      "args": ["/Users/sato/Documents/Codex/2026-09-02/ni/qfpay-openapi-transactions/scripts/qfpay_mcp_server.py"],
-      "env": {
-        "QFPAY_ENV": "qa",
-        "QFPAY_APP_CODE": "replace-with-app-code",
-        "QFPAY_CLIENT_KEY": "replace-with-client-key"
-      }
-    }
-  }
-}
-```
-
-工具默认 `execute=false`，只返回脱敏签名预览；需要真正请求 QFPay 时传 `execute=true`。灰度和生产环境还必须传 `confirm_production=true`；退款、冲正、close、预授权扣款和解冻还必须传 `confirm_funds_action=true`。
-
-如果本机 Python 报 `CERTIFICATE_VERIFY_FAILED`，先安装/修复 Python CA 证书，或在 MCP 客户端环境里指定 CA bundle：
-
-```json
-{
-  "env": {
-    "QFPAY_CA_BUNDLE": "/path/to/cacert.pem"
-  }
-}
-```
-
-server 会优先使用 `QFPAY_CA_BUNDLE`；未设置时，如果当前 Python 安装了 `certifi`，会自动使用 `certifi` 的 CA bundle。
-
-## 覆盖检查
-
-更新 QFPay 文档后运行：
+執行 release checks：
 
 ```bash
+python3 scripts/check_contract_freshness.py
 python3 scripts/check_paytype_coverage.py
+python3 scripts/check_evals.py
+python3 scripts/build_release_manifest.py --check
+python3 scripts/check_public_release.py --preview
+python3 scripts/qfpay_mcp_server.py --self-test
+python3 -m unittest discover -s tests -v
 ```
+
+## Release gate
+
+Production 或 Remote MCP 發布前必須完成：fresh canonical OpenAPI contract、channel eligibility、OAuth 2.1、merchant/store scope、Vault/KMS credential broker、獨立 human approval（request hash/amount/currency/expiry binding）、durable idempotency/audit、payment state machine、redaction/DLP、rate limit、Host/Origin validation、MCP conformance、fault-injection 和 UAT evidence。任一項缺失即 **NO-GO**。
+
+公開 package 的可重現性、checksum 和人工作業請看 [`docs/PUBLISHING.md`](docs/PUBLISHING.md)。`check_public_release.py` 對這個 internal preview 會故意失敗，直到組織補上已核准 licence、官方網址、OpenAPI SHA-256 和乾淨的 reviewed Git tag；這不會放寬 Production/Remote MCP 的 NO-GO 邊界。
+
+目前 manifest 記錄的 canonical URL 在 2026-09-15 回傳的是 `OpenAPI Plant Store` 示例，不是 QFPay OpenAPI；因此 source status 為 `blocked`，不得填入其 hash 或公開發布。取得 QFPay 官方 canonical URL 後，先用 `scripts/verify_contract_source.py` 驗證文件身份，再更新 manifest。

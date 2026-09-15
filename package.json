@@ -1,0 +1,46 @@
+{
+  "name": "@qfpay/cli",
+  "version": "0.2.0",
+  "description": "QFPay developer CLI and safe local agent integration",
+  "license": "UNLICENSED",
+  "private": true,
+  "bin": {
+    "qfpay": "bin/qfpay.js"
+  },
+  "engines": {
+    "node": ">=20",
+    "npm": ">=10"
+  },
+  "files": [
+    "bin/",
+    "scripts/check_contract_freshness.py",
+    "scripts/check_evals.py",
+    "scripts/check_paytype_coverage.py",
+    "scripts/check_public_release.py",
+    "scripts/check_skill_release.py",
+    "scripts/build_release_manifest.py",
+    "scripts/qfpay_callback.py",
+    "scripts/qfpay_cli.py",
+    "scripts/qfpay_mcp_server.py",
+    "scripts/qfpay_sign.py",
+    "scripts/verify_contract_source.py",
+    "references/contract-manifest.json",
+    "references/qfpay-openapi-reference.md",
+    "references/qfpay-openapi-reference.zh-CN.md",
+    "references/qfpay-openapi-reference.zh-Hant.md",
+    "references/terminology.md",
+    "skills/*/SKILL.md",
+    "templates/hosted-checkout-node/.env.example",
+    "templates/hosted-checkout-node/package.json",
+    "templates/hosted-checkout-node/server.js",
+    "templates/mpm-node/.env.example",
+    "templates/mpm-node/package.json",
+    "templates/mpm-node/server.js",
+    "docs/PUBLISHING.md",
+    "evals/cases.json",
+    "release/manifest.json",
+    ".well-known/skills/index.json",
+    ".codex-plugin/plugin.json",
+    "CHANGELOG.md"
+  ]
+}

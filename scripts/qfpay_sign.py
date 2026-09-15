@@ -179,39 +179,37 @@ def main():
     parser.add_argument(
         "--env",
         choices=sorted(ENVIRONMENTS),
-        default=os.getenv("QFPAY_ENV", "live-testing"),
+        default=os.getenv("QFPAY_ENV", "qa"),
         help="QFPay environment alias. QA maps to Sandbox/openapi-int; gray maps to gray-openapi-hk.",
     )
     parser.add_argument("--base-url", default=os.getenv("QFPAY_BASE_URL"), help="Override the environment base URL")
     parser.add_argument("--path", required=True, help="API path, e.g. /trade/v1/query")
     parser.add_argument("--method", default="POST", help="HTTP method for form cURL output")
-    parser.add_argument("--app-code", default=os.getenv("QFPAY_APP_CODE"), help="QFPay app code. Prefer env or --prompt-app-code.")
-    parser.add_argument(
-        "--client-key",
-        default=os.getenv("QFPAY_CLIENT_KEY"),
-        help="QFPay signing key. Prefer env or --prompt-client-key; command-line values may be visible.",
-    )
     parser.add_argument("--prompt-app-code", action="store_true", help="Prompt for app code instead of putting it in shell history.")
     parser.add_argument("--prompt-client-key", action="store_true", help="Prompt for client key without terminal echo.")
-    parser.add_argument("--show-sensitive", action="store_true", help="Print usable signature, cURL, or checkout URL. Default redacts them.")
+    parser.add_argument("--show-sensitive", action="store_true", help="Print usable signature, cURL, or checkout URL only when QFPAY_ALLOW_SENSITIVE_OUTPUT=1 is set by the local operator. Default redacts them.")
     parser.add_argument("--sign-type", choices=["MD5", "SHA256"], default="MD5")
     parser.add_argument("--params-json", help="JSON object or @file.json with request parameters")
     parser.add_argument("--param", action="append", default=[], type=parse_key_value, help="Request parameter as KEY=VALUE")
     parser.add_argument("--keep-empty", action="store_true", help="Keep empty values in signing input")
     args = parser.parse_args()
 
+    args.app_code = os.getenv("QFPAY_APP_CODE")
     if args.prompt_app_code:
         args.app_code = input("QFPAY_APP_CODE: ").strip()
+    args.client_key = os.getenv("QFPAY_CLIENT_KEY")
     if args.prompt_client_key:
         args.client_key = getpass.getpass("QFPAY_CLIENT_KEY: ")
 
     if not args.client_key:
-        raise SystemExit("client key is required via --prompt-client-key, --client-key, or QFPAY_CLIENT_KEY")
+        raise SystemExit("client key is required via --prompt-client-key or QFPAY_CLIENT_KEY; it is never accepted as a command-line value")
     if args.mode == "form" and not args.app_code:
-        raise SystemExit("app code is required for form mode via --prompt-app-code, --app-code, or QFPAY_APP_CODE")
-    if any(arg == "--client-key" or arg.startswith("--client-key=") for arg in sys.argv[1:]):
-        print("warning: --client-key may be captured in shell history or process lists; prefer --prompt-client-key", file=sys.stderr)
+        raise SystemExit("app code is required for form mode via --prompt-app-code or QFPAY_APP_CODE; it is never accepted as a command-line value")
+    if args.show_sensitive and os.getenv("QFPAY_ALLOW_SENSITIVE_OUTPUT") != "1":
+        raise SystemExit("--show-sensitive requires QFPAY_ALLOW_SENSITIVE_OUTPUT=1 set by the local operator")
 
+    if args.base_url and os.getenv("QFPAY_ALLOW_BASE_URL_OVERRIDE") != "1":
+        raise SystemExit("--base-url requires QFPAY_ALLOW_BASE_URL_OVERRIDE=1; use a documented environment by default")
     base_url = args.base_url or ENVIRONMENTS[args.env]
     params = load_params(args)
     signature = make_signature(params, args.client_key, args.sign_type)

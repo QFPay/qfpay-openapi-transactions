@@ -1,0 +1,202 @@
+{
+  "contract": {
+    "sha256": "",
+    "source_verification": "blocked",
+    "url": "https://sdk.qfapi.com/openapi.json",
+    "version": "2026-09-15"
+  },
+  "files": [
+    {
+      "path": ".codex-plugin/plugin.json",
+      "sha256": "9aed4f78efd4d613d3843526d2d4277360c28db6b22c6c10224861b6cecf6bfd",
+      "size": 1030
+    },
+    {
+      "path": ".well-known/skills/index.json",
+      "sha256": "9d0057d08a7b2833bd47db5cbf2a3d4aa291c361d20a444d0e162073e32283d6",
+      "size": 892
+    },
+    {
+      "path": "CHANGELOG.md",
+      "sha256": "9d4ae74044e9d773b3a6c5426d0ffcb2f81305df123dbd434e706396595ca21d",
+      "size": 614
+    },
+    {
+      "path": "README.md",
+      "sha256": "70c997c4112c7c963b68fe71fc3cd3ab59b97abd5b734fe58aab4c84793b3563",
+      "size": 5007
+    },
+    {
+      "path": "bin/qfpay.js",
+      "sha256": "a1617d13df4010b94df234e2466f2ced484ba5133a6485b6c8430e663f29072a",
+      "size": 733
+    },
+    {
+      "path": "docs/PUBLISHING.md",
+      "sha256": "1e26cc5513e1db5fc454d7e302d27100f31ae3a47a0ccada95e076f94bc44b73",
+      "size": 3237
+    },
+    {
+      "path": "evals/cases.json",
+      "sha256": "c0d444391dff9bae4c3e09d9b8fad0db13ed81adfaa2aac03639e87fb9c16b51",
+      "size": 3990
+    },
+    {
+      "path": "package.json",
+      "sha256": "1fca048fa2a30bbb6072147f121ddee97a9d687d74402e89344ce77c3398e0be",
+      "size": 1378
+    },
+    {
+      "path": "references/contract-manifest.json",
+      "sha256": "4400cc3368cab24b6059af5d5d406316afc9c8b7a7352f2001d8d1d839774502",
+      "size": 1252
+    },
+    {
+      "path": "references/qfpay-openapi-reference.md",
+      "sha256": "4c8ebf4d914f87e3294d543afb2989f4afd4f6dfbaafa76da696d975afc8f4ca",
+      "size": 33046
+    },
+    {
+      "path": "references/qfpay-openapi-reference.zh-CN.md",
+      "sha256": "dc0c896870098d46787b5120c5f936a4324db168a6b11f332841c305e18ff57e",
+      "size": 30754
+    },
+    {
+      "path": "references/qfpay-openapi-reference.zh-Hant.md",
+      "sha256": "a23c8d822cabd79bdec640aa708d0e58a98d0dd08bcb9f960d13af3a831495ec",
+      "size": 3217
+    },
+    {
+      "path": "references/terminology.md",
+      "sha256": "2d19467ebc3862452fd0405323ac4118aefb617adf68f3d2e8acd72da07179d8",
+      "size": 1026
+    },
+    {
+      "path": "scripts/build_release_manifest.py",
+      "sha256": "73f6a0546ba1b9cead0d3b91651581dde079bb59a3e24756e3bb5822a8a765d6",
+      "size": 4750
+    },
+    {
+      "path": "scripts/check_contract_freshness.py",
+      "sha256": "fb99e33cbb5eaa850ececdd675c694d6494e2593578a958cd4321a08db7b7c62",
+      "size": 1489
+    },
+    {
+      "path": "scripts/check_evals.py",
+      "sha256": "801a168142dcb0c1a8548db5be81c4127ca3681577d2d90705cf6cf612150553",
+      "size": 2244
+    },
+    {
+      "path": "scripts/check_paytype_coverage.py",
+      "sha256": "5b23eacc6f0b0ec0e5fa9d3f862122443431c51e320d281b78fffc95e964ae42",
+      "size": 1885
+    },
+    {
+      "path": "scripts/check_public_release.py",
+      "sha256": "c685792a1a52a7e55507626ab1c235d9bb39f221516517c110b03777e7d417b0",
+      "size": 4083
+    },
+    {
+      "path": "scripts/check_skill_release.py",
+      "sha256": "ad1760ca8e8a54e634f05f15466c79a46a5771bd273adf81a9f19a8011ecac83",
+      "size": 2756
+    },
+    {
+      "path": "scripts/qfpay_callback.py",
+      "sha256": "05712e15903882e3e575302d0f5a570759879665f6db1dde4ab6fb382e3cee24",
+      "size": 5847
+    },
+    {
+      "path": "scripts/qfpay_cli.py",
+      "sha256": "c81f24d5ea823b2572e5ebc9c8d3c76aac007d5b2652f3fcf6dcbf914959539b",
+      "size": 16917
+    },
+    {
+      "path": "scripts/qfpay_mcp_server.py",
+      "sha256": "a9e47d9d9d0c7ff13af858917ad1dfa215db4ae577641affb2c71112cd457419",
+      "size": 19486
+    },
+    {
+      "path": "scripts/qfpay_sign.py",
+      "sha256": "f9767dd366c359fe48a60b932cd63fb60f654b24dec0985bb317eb53fe6e51c0",
+      "size": 8964
+    },
+    {
+      "path": "scripts/verify_contract_source.py",
+      "sha256": "b897ac8289f83c3d786ec3ddc0346f03717cc5a29e8431be27985ae7d6a37191",
+      "size": 3189
+    },
+    {
+      "path": "skills/qfpay-auth-and-signing/SKILL.md",
+      "sha256": "cb09b524ed655b837029e71043ed5433d803667386e75fcc6d6578575280facb",
+      "size": 1560
+    },
+    {
+      "path": "skills/qfpay-docs/SKILL.md",
+      "sha256": "f24d5a21a0500b0efcc568773392eef20febd29d20aff08a291d42468d0fe45d",
+      "size": 1111
+    },
+    {
+      "path": "skills/qfpay-go-live-review/SKILL.md",
+      "sha256": "f9bb022c0f8865cc5c9bf54f4c2e1c01295d4c9b4efedfa41ffdf101fd676604",
+      "size": 1623
+    },
+    {
+      "path": "skills/qfpay-integration-planner/SKILL.md",
+      "sha256": "3be91aebea27a38c0444b9f0215c7c940bbed23b7d4524fa3327cdd7bb3e0c94",
+      "size": 1654
+    },
+    {
+      "path": "skills/qfpay-payment-best-practices/SKILL.md",
+      "sha256": "5bad2eafa06381b884c7aa120a42c2f25ae9d445f37880f62f007c0739c5ef12",
+      "size": 1936
+    },
+    {
+      "path": "skills/qfpay-webhooks-and-enquiry/SKILL.md",
+      "sha256": "57ba2615f736c5dcb731f33b14b3e7f90d9695dd8463f6aa8ce4922a681c4c5b",
+      "size": 1609
+    },
+    {
+      "path": "templates/hosted-checkout-node/.env.example",
+      "sha256": "9a1b2febc36babf68e244ba4a7f6ae65870681b9d4d73352c0acbe707a5ea90f",
+      "size": 190
+    },
+    {
+      "path": "templates/hosted-checkout-node/package.json",
+      "sha256": "3b25a995ee694160c894b0f53741bac115da6c78e53197988f38f96fda6ffb86",
+      "size": 223
+    },
+    {
+      "path": "templates/hosted-checkout-node/server.js",
+      "sha256": "cdb2999e264489f899c0b47177864a7bb656ec3bb8e9fd7cef34124c871970b8",
+      "size": 5147
+    },
+    {
+      "path": "templates/mpm-node/.env.example",
+      "sha256": "612865bab19c44168cf2f71dcfd86cc148f16089eaab8830bb833a49a6f95010",
+      "size": 152
+    },
+    {
+      "path": "templates/mpm-node/package.json",
+      "sha256": "2838f2e96d0e9d32d0ac1785b58c7e89e282c251466d0e1be5c974c80682edf4",
+      "size": 184
+    },
+    {
+      "path": "templates/mpm-node/server.js",
+      "sha256": "d5996b6484c22b2ec99530e9a252dba64cc8ea9a84a0a99128f762a55bea3e90",
+      "size": 2209
+    }
+  ],
+  "integrity_exclusions": [
+    "release/manifest.json"
+  ],
+  "package": {
+    "name": "@qfpay/cli",
+    "version": "0.2.0"
+  },
+  "plugin": {
+    "name": "qfpay-payment-skills",
+    "version": "0.2.0"
+  },
+  "schema_version": 1
+}

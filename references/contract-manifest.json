@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "canonical_contract": {
+    "url": "https://sdk.qfapi.com/openapi.json",
+    "version": "2026-09-15",
+    "published_at": "2026-09-15",
+    "sha256": "",
+    "identity_requirement": {
+      "info_title_must_contain": "QFPay"
+    },
+    "source_verification": {
+      "status": "blocked",
+      "checked_at": "2026-09-15",
+      "observed_source": {
+        "info_title": "OpenAPI Plant Store",
+        "info_version": "1.0.0",
+        "path_count": 2,
+        "sha256": "919eb7a392aafe9825cc9fc0e5b2174643803e1f825816a5a2cb95fb20a94aa9"
+      },
+      "reason": "The configured URL did not identify a QFPay OpenAPI document when checked. Do not accept or hash it as the canonical contract."
+    },
+    "locale_index": "https://sdk.qfapi.com/llms.txt",
+    "status": "bundled snapshot; canonical source is blocked pending an official QFPay OpenAPI URL"
+  },
+  "bundled_references": [
+    "qfpay-openapi-reference.md",
+    "qfpay-openapi-reference.zh-Hant.md",
+    "qfpay-openapi-reference.zh-CN.md"
+  ],
+  "release_policy": {
+    "max_snapshot_age_days": 30,
+    "production_requires": [
+      "fresh canonical contract",
+      "channel eligibility confirmation",
+      "merchant approval",
+      "go-live review"
+    ]
+  }
+}

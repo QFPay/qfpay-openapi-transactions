@@ -1,0 +1,16 @@
+[
+  {
+    "name": "md5-query",
+    "params": {"out_trade_no": "ORDER_1001", "syssn": "202609150001"},
+    "client_key": "test-client-key",
+    "sign_type": "MD5",
+    "expected": "0DE1211C9263C18BF84C553A9AB818DA"
+  },
+  {
+    "name": "sha256-checkout",
+    "params": {"appcode": "APP_TEST", "txamt": "100", "txcurrcd": "HKD"},
+    "client_key": "test-client-key",
+    "sign_type": "SHA256",
+    "expected": "2CA469D6FA418C28D77182BE1F337F9B66A7A13973C7F54389639B4AC80CA693"
+  }
+]

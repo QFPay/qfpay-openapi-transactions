@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "publisher": "QFPay Developer Experience",
+  "release": "0.2.0",
+  "contract_version": "2026-09-15",
+  "skills": [
+    {"name": "qfpay-integration-planner", "version": "0.2.0", "path": "skills/qfpay-integration-planner"},
+    {"name": "qfpay-payment-best-practices", "version": "0.2.0", "path": "skills/qfpay-payment-best-practices"},
+    {"name": "qfpay-auth-and-signing", "version": "0.2.0", "path": "skills/qfpay-auth-and-signing"},
+    {"name": "qfpay-webhooks-and-enquiry", "version": "0.2.0", "path": "skills/qfpay-webhooks-and-enquiry"},
+    {"name": "qfpay-docs", "version": "0.2.0", "path": "skills/qfpay-docs"},
+    {"name": "qfpay-go-live-review", "version": "0.2.0", "path": "skills/qfpay-go-live-review"}
+  ],
+  "remote_mcp": {"status": "not_published", "reason": "OAuth, scope, approval, audit and credential-broker release gates are not complete"}
+}

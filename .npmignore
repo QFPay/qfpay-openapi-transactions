@@ -1,0 +1,18 @@
+scripts/__pycache__/
+tests/
+work/
+*.pyc
+*.pyo
+.DS_Store
+
+# Never package local runtime credentials; examples remain intentionally public.
+.env
+.env.*
+!.env.example
+secrets/
+credentials*.json
+qfpay-credentials*.json
+.qfpay/
+*.key
+*.pem
+*.secret

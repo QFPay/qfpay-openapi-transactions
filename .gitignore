@@ -28,6 +28,9 @@ venv/
 secrets/
 credentials*.json
 qfpay-credentials*.json
+.qfpay/
+.qfpay-approval/
+audit-events*.jsonl
 *.key
 *.pem
 *.secret

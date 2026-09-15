@@ -1,0 +1,25 @@
+{
+  "name": "qfpay-payment-skills",
+  "version": "0.2.0",
+  "description": "Versioned QFPay payment integration skills with a safe local developer CLI.",
+  "author": {
+    "name": "QFPay Developer Experience",
+    "url": "https://sdk.qfapi.com"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "QFPay Payment Skills",
+    "shortDescription": "Build QFPay integrations safely",
+    "longDescription": "Versioned QFPay integration guidance, local docs and a read-only Sandbox-first MCP. It does not include merchant credentials or Remote MCP execution.",
+    "developerName": "QFPay Developer Experience",
+    "category": "Developer Tools",
+    "capabilities": ["Skills", "Local CLI", "Read-only MCP"],
+    "websiteURL": "https://sdk.qfapi.com",
+    "defaultPrompt": [
+      "Plan a QFPay Sandbox integration for my Node.js shop.",
+      "Review this QFPay callback handler for idempotency and safety.",
+      "Create a QFPay Go-live checklist without changing Production."
+    ],
+    "brandColor": "#0055A5"
+  }
+}

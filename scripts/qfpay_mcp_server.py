@@ -1,39 +1,34 @@
 #!/usr/bin/env python3
-"""stdio MCP server for QFPay OpenAPI transaction tools."""
+"""A local, read-only stdio MCP server for QFPay documentation and enquiry.
 
+This server deliberately does not expose payment creation, checkout signing, refunds, or
+other money-moving tools.  It is not a Remote MCP implementation and must not be exposed
+on an HTTP port.  Credentials, if local transaction enquiry is enabled, are read only from
+the MCP host environment and are never accepted from, or returned to, the model.
+"""
+
+from __future__ import annotations
+
+import hashlib
 import json
 import os
+import re
 import ssl
 import sys
 import traceback
-from datetime import datetime
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
-from qfpay_sign import (
-    ENVIRONMENTS,
-    build_url,
-    canonical_string,
-    display_params,
-    encoded_params,
-    make_signature,
-    mask,
-    stringify,
-)
+from qfpay_sign import ENVIRONMENTS, make_signature
 
 
 PROTOCOL_VERSION = "2025-06-18"
-SERVER_NAME = "qfpay-openapi-transactions"
-SERVER_VERSION = "0.1.0"
-MONEY_MUTATION_TOOLS = {
-    "qfpay_refund",
-    "qfpay_reversal",
-    "qfpay_close",
-    "qfpay_authtrade",
-    "qfpay_unfreeze",
-}
+SERVER_NAME = "qfpay-openapi-readonly"
+SERVER_VERSION = "0.2.0"
+ROOT = Path(__file__).resolve().parents[1]
+REFERENCE_ROOT = ROOT / "references"
 ENV_ALIASES = {
     "sandbox": "qa",
     "qa": "qa",
@@ -44,320 +39,245 @@ ENV_ALIASES = {
     "production": "production",
     "prod": "production",
 }
+SENSITIVE_KEY_PARTS = (
+    "appcode",
+    "app_code",
+    "auth",
+    "buyer",
+    "card",
+    "client_key",
+    "email",
+    "idnumber",
+    "id_no",
+    "mchid",
+    "mchntid",
+    "mobile",
+    "openid",
+    "phone",
+    "secret",
+    "signature",
+    "sign",
+    "token",
+)
 
 
-def schema(properties, required=()):
-    return {"type": "object", "properties": properties, "required": list(required)}
-
-
-COMMON_AUTH_FIELDS = {
-    "env": {
-        "type": "string",
-        "enum": ["qa", "live-testing", "gray", "production"],
-        "description": "QFPay environment. Defaults to QFPAY_ENV or live-testing.",
-    },
-    "app_code": {
-        "type": "string",
-        "description": "QFPay app code. Prefer QFPAY_APP_CODE environment variable.",
-    },
-    "client_key": {
-        "type": "string",
-        "description": "QFPay client key. Prefer QFPAY_CLIENT_KEY environment variable.",
-    },
-    "sign_type": {"type": "string", "enum": ["MD5", "SHA256"], "default": "MD5"},
-    "execute": {
-        "type": "boolean",
-        "default": False,
-        "description": "False returns a redacted signed preview. True sends the API request.",
-    },
-    "confirm_production": {
-        "type": "boolean",
-        "default": False,
-        "description": "Required when execute=true and env=gray or production.",
-    },
-}
-
-
-COMMON_PAYMENT_FIELDS = {
-    **COMMON_AUTH_FIELDS,
-    "pay_type": {"type": "string", "description": "Six-digit QFPay pay_type."},
-    "txamt": {"type": "integer", "minimum": 1, "description": "Amount in minor units, e.g. 100 = HKD 1.00."},
-    "txcurrcd": {"type": "string", "default": "HKD"},
-    "out_trade_no": {"type": "string"},
-    "txdtm": {"type": "string", "description": "YYYY-MM-DD HH:mm:ss. Defaults to now."},
-    "mchid": {"type": "string"},
-    "auth_code": {"type": "string"},
-    "sub_openid": {"type": "string"},
-    "openid": {"type": "string"},
-    "notify_url": {"type": "string"},
-    "return_url": {"type": "string"},
-    "failed_url": {"type": "string"},
-    "goods_name": {"type": "string"},
-    "expired_time": {"type": "string"},
-    "pay_tag": {"type": "string"},
-    "limit_pay": {"type": "string"},
-    "udid": {"type": "string"},
-    "extend_info": {"type": ["object", "string"]},
-    "extra_params": {"type": "object", "description": "Additional QFPay form fields."},
-}
+def object_schema(properties: dict, required: tuple[str, ...] = ()) -> dict:
+    return {
+        "type": "object",
+        "properties": properties,
+        "required": list(required),
+        "additionalProperties": False,
+    }
 
 
 TOOLS = [
     {
-        "name": "qfpay_payment",
-        "title": "QFPay Payment",
-        "description": "Create MPM, CPM, Web, WAP/H5, In-App, FPS, wallet, or QR payment orders through /trade/v1/payment.",
-        "inputSchema": schema(COMMON_PAYMENT_FIELDS, ["pay_type", "txamt", "out_trade_no"]),
-    },
-    {
-        "name": "qfpay_query",
-        "title": "QFPay Query",
-        "description": "Query transaction status or order lists through /trade/v1/query.",
-        "inputSchema": schema(
+        "name": "qfpay_docs_search",
+        "title": "QFPay Documentation Search",
+        "description": "Search the bundled, versioned QFPay documentation snapshot. This tool never makes a network request.",
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "openWorldHint": False},
+        "inputSchema": object_schema(
             {
-                **COMMON_AUTH_FIELDS,
-                "syssn": {"type": "string"},
-                "out_trade_no": {"type": "string"},
-                "pay_type": {"type": "string"},
-                "respcd": {"type": "string"},
-                "start_time": {"type": "string"},
-                "end_time": {"type": "string"},
-                "page": {"type": "integer", "minimum": 1},
-                "page_size": {"type": "integer", "minimum": 1, "maximum": 100},
-                "mchid": {"type": "string"},
-                "extra_params": {"type": "object"},
-            }
-        ),
-    },
-    {
-        "name": "qfpay_refund",
-        "title": "QFPay Refund",
-        "description": "Refund a successful payment through /trade/v1/refund. Requires confirm_funds_action=true when execute=true.",
-        "inputSchema": schema(
-            {
-                **COMMON_AUTH_FIELDS,
-                "confirm_funds_action": {"type": "boolean", "default": False},
-                "syssn": {"type": "string", "description": "Original payment syssn."},
-                "out_trade_no": {"type": "string", "description": "Unique merchant refund order number."},
-                "txamt": {"type": "integer", "minimum": 1},
-                "txdtm": {"type": "string", "description": "Defaults to now."},
-                "mchid": {"type": "string"},
-                "udid": {"type": "string"},
-                "extra_params": {"type": "object"},
+                "query": {"type": "string", "minLength": 2, "maxLength": 120},
+                "locale": {"type": "string", "enum": ["en", "zh-Hant", "zh-CN"]},
+                "limit": {"type": "integer", "minimum": 1, "maximum": 10},
             },
-            ["syssn", "out_trade_no", "txamt"],
-        ),
-    },
-    {
-        "name": "qfpay_reversal",
-        "title": "QFPay Reversal",
-        "description": "Reverse/void an unfinished QR or card authorization through /trade/v1/reversal. Requires confirm_funds_action=true when execute=true.",
-        "inputSchema": schema(
-            {
-                **COMMON_AUTH_FIELDS,
-                "confirm_funds_action": {"type": "boolean", "default": False},
-                "syssn": {"type": "string"},
-                "out_trade_no": {"type": "string"},
-                "txamt": {"type": "integer", "minimum": 1},
-                "txdtm": {"type": "string", "description": "Original transaction time."},
-                "mchid": {"type": "string"},
-                "udid": {"type": "string"},
-                "extra_params": {"type": "object"},
-            },
-            ["txamt", "txdtm"],
-        ),
-    },
-    {
-        "name": "qfpay_close",
-        "title": "QFPay Close",
-        "description": "Close an order through GET /trade/v1/close. Requires confirm_funds_action=true when execute=true.",
-        "inputSchema": schema(
-            {
-                **COMMON_AUTH_FIELDS,
-                "confirm_funds_action": {"type": "boolean", "default": False},
-                "syssn": {"type": "string"},
-                "out_trade_no": {"type": "string"},
-                "txamt": {"type": "integer", "minimum": 1},
-                "txdtm": {"type": "string", "description": "Original transaction time."},
-                "mchid": {"type": "string"},
-                "udid": {"type": "string"},
-                "extra_params": {"type": "object"},
-            },
-            ["txamt", "txdtm"],
-        ),
-    },
-    {
-        "name": "qfpay_authtrade",
-        "title": "QFPay Preauth Capture",
-        "description": "Capture a preauthorization through /trade/v1/authtrade. Requires confirm_funds_action=true when execute=true.",
-        "inputSchema": schema(
-            {
-                **COMMON_AUTH_FIELDS,
-                "confirm_funds_action": {"type": "boolean", "default": False},
-                "syssn": {"type": "string"},
-                "txamt": {"type": "integer", "minimum": 1},
-                "txcurrcd": {"type": "string"},
-                "mchid": {"type": "string"},
-                "extra_params": {"type": "object"},
-            },
-            ["syssn", "txamt"],
-        ),
-    },
-    {
-        "name": "qfpay_unfreeze",
-        "title": "QFPay Preauth Unfreeze",
-        "description": "Unfreeze a preauthorization through /trade/v1/unfreeze. Requires confirm_funds_action=true when execute=true.",
-        "inputSchema": schema(
-            {
-                **COMMON_AUTH_FIELDS,
-                "confirm_funds_action": {"type": "boolean", "default": False},
-                "syssn": {"type": "string"},
-                "out_trade_no": {"type": "string"},
-                "txamt": {"type": "integer", "minimum": 1},
-                "txdtm": {"type": "string"},
-                "mchid": {"type": "string"},
-                "extra_params": {"type": "object"},
-            },
-            ["syssn", "out_trade_no", "txamt", "txdtm"],
-        ),
-    },
-    {
-        "name": "qfpay_payment_intent",
-        "title": "QFPay Element Intent",
-        "description": "Create a Payment Element intent through /payment_element/v1/create_payment_intent.",
-        "inputSchema": schema(
-            {
-                **COMMON_PAYMENT_FIELDS,
-                "failed_url": {"type": "string"},
-            },
-            ["txamt", "pay_type", "out_trade_no"],
-        ),
-    },
-    {
-        "name": "qfpay_checkout_url",
-        "title": "QFPay Hosted Checkout URL",
-        "description": "Generate a signed Hosted Checkout URL. This does not send a network request.",
-        "inputSchema": schema(
-            {
-                "env": COMMON_AUTH_FIELDS["env"],
-                "app_code": COMMON_AUTH_FIELDS["app_code"],
-                "client_key": COMMON_AUTH_FIELDS["client_key"],
-                "sign_type": {"type": "string", "enum": ["MD5", "SHA256"], "default": "SHA256"},
-                "paysource": {"type": "string", "default": "remotepay_checkout"},
-                "txamt": {"type": "integer", "minimum": 1},
-                "txcurrcd": {"type": "string", "default": "HKD"},
-                "out_trade_no": {"type": "string"},
-                "txdtm": {"type": "string", "description": "Defaults to now."},
-                "return_url": {"type": "string"},
-                "failed_url": {"type": "string"},
-                "notify_url": {"type": "string"},
-                "mchntid": {"type": "string"},
-                "goods_name": {"type": "string"},
-                "udid": {"type": "string"},
-                "expired_time": {"type": "string"},
-                "checkout_expired_time": {"type": "string"},
-                "limit_pay": {"type": "string"},
-                "lang": {"type": "string"},
-                "cancel_url": {"type": "string"},
-                "extra_params": {"type": "object"},
-            },
-            ["txamt", "out_trade_no", "return_url", "failed_url", "notify_url"],
+            ("query",),
         ),
     },
     {
         "name": "qfpay_paytypes",
         "title": "QFPay Pay Types",
-        "description": "List documented QFPay pay_type values from the bundled reference, optionally filtered by channel or pay_type.",
-        "inputSchema": schema(
+        "description": "List documented QFPay pay_type values from the bundled documentation snapshot.",
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "openWorldHint": False},
+        "inputSchema": object_schema(
             {
-                "channel": {"type": "string", "description": "Case-insensitive channel filter, e.g. FPS, Octopus, Alipay."},
-                "pay_type": {"type": "string", "description": "Exact six-digit pay_type filter."},
+                "channel": {"type": "string", "maxLength": 80},
+                "pay_type": {"type": "string", "pattern": "^[0-9]{6}$"},
+            }
+        ),
+    },
+    {
+        "name": "qfpay_transaction_get",
+        "title": "QFPay Transaction Enquiry",
+        "description": "Preview or, when the local host explicitly enables it, query one transaction. The environment and credentials are fixed by the MCP host; the model cannot supply either.",
+        "annotations": {"readOnlyHint": True, "destructiveHint": False, "openWorldHint": False},
+        "inputSchema": object_schema(
+            {
+                "syssn": {"type": "string", "minLength": 1, "maxLength": 128},
+                "out_trade_no": {"type": "string", "minLength": 1, "maxLength": 128},
+                "live_query": {"type": "boolean", "default": False},
             }
         ),
     },
 ]
 
 
-def now_dtm():
-    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-
-def add_param(params, key, value):
-    if value is None or value == "":
+def validate_schema(value: object, schema: dict, path: str = "arguments") -> None:
+    """Validate the limited JSON Schema subset used by this server at its trust boundary."""
+    expected = schema.get("type")
+    if expected == "object":
+        if not isinstance(value, dict):
+            raise ValueError(f"{path} must be an object")
+        properties = schema.get("properties", {})
+        if schema.get("additionalProperties") is False:
+            unknown = sorted(set(value) - set(properties))
+            if unknown:
+                raise ValueError(f"{path} contains unsupported field(s): {', '.join(unknown)}")
+        missing = [field for field in schema.get("required", []) if field not in value]
+        if missing:
+            raise ValueError(f"{path} is missing required field(s): {', '.join(missing)}")
+        for key, child in value.items():
+            validate_schema(child, properties[key], f"{path}.{key}")
         return
-    params[key] = stringify(value)
+    if expected == "string":
+        if not isinstance(value, str):
+            raise ValueError(f"{path} must be a string")
+        if len(value) < schema.get("minLength", 0):
+            raise ValueError(f"{path} is too short")
+        if len(value) > schema.get("maxLength", 2**31):
+            raise ValueError(f"{path} is too long")
+        pattern = schema.get("pattern")
+        if pattern and re.fullmatch(pattern, value) is None:
+            raise ValueError(f"{path} has an invalid format")
+    elif expected == "integer":
+        if isinstance(value, bool) or not isinstance(value, int):
+            raise ValueError(f"{path} must be an integer")
+        if value < schema.get("minimum", -(2**63)) or value > schema.get("maximum", 2**63 - 1):
+            raise ValueError(f"{path} is outside its allowed range")
+    elif expected == "boolean" and not isinstance(value, bool):
+        raise ValueError(f"{path} must be a boolean")
+    if "enum" in schema and value not in schema["enum"]:
+        raise ValueError(f"{path} must be one of: {', '.join(map(str, schema['enum']))}")
 
 
-def add_fields(params, args, fields):
-    for field in fields:
-        add_param(params, field, args.get(field))
+def mask(value: object, visible: int = 4) -> str:
+    text = "" if value is None else str(value)
+    if len(text) <= visible * 2:
+        return "<redacted>"
+    return f"{text[:visible]}...{text[-visible:]}"
 
 
-def build_params(args, fields, defaults=None):
-    params = {}
-    extra = args.get("extra_params") or {}
-    if not isinstance(extra, dict):
-        raise ValueError("extra_params must be an object")
-    for key, value in extra.items():
-        add_param(params, str(key), value)
-    for key, value in (defaults or {}).items():
-        add_param(params, key, args.get(key, value))
-    add_fields(params, args, fields)
-    return params
+def redact(value: object, key: str = "") -> object:
+    """Redact structured and textual tool results before either MCP representation is made."""
+    lowered = key.lower()
+    if any(part in lowered for part in SENSITIVE_KEY_PARTS):
+        return "<redacted>"
+    if isinstance(value, dict):
+        return {str(child_key): redact(child_value, str(child_key)) for child_key, child_value in value.items()}
+    if isinstance(value, list):
+        return [redact(item, key) for item in value]
+    if isinstance(value, str):
+        value = re.sub(r"(?i)(appcode|app_code|sign|signature|token)=([^&\s]+)", r"\1=<redacted>", value)
+    return value
 
 
-def normalize_env(raw):
-    env = raw or os.getenv("QFPAY_ENV") or "live-testing"
-    env = str(env).strip().lower()
-    if env not in ENV_ALIASES:
-        raise ValueError(f"unsupported env: {env}")
-    return ENV_ALIASES[env]
-
-
-def resolve_context(args):
-    env = normalize_env(args.get("env"))
-    app_code = args.get("app_code") or os.getenv("QFPAY_APP_CODE")
-    client_key = args.get("client_key") or os.getenv("QFPAY_CLIENT_KEY")
-    if not app_code:
-        raise ValueError("app_code is required via tool argument or QFPAY_APP_CODE")
-    if not client_key:
-        raise ValueError("client_key is required via tool argument or QFPAY_CLIENT_KEY")
-    return env, ENVIRONMENTS[env], str(app_code), str(client_key)
-
-
-def check_execution_flags(tool_name, env, args):
-    if not args.get("execute", False):
-        return
-    if env in {"gray", "production"} and not args.get("confirm_production", False):
-        raise ValueError("confirm_production=true is required to execute against gray or production")
-    if tool_name in MONEY_MUTATION_TOOLS and not args.get("confirm_funds_action", False):
-        raise ValueError("confirm_funds_action=true is required for this funds action")
-
-
-def response_preview(env, base_url, path, method, sign_type, app_code, params, execute):
-    headers = {
-        "Content-Type": "application/x-www-form-urlencoded",
-        "X-QF-APPCODE": mask(app_code),
-        "X-QF-SIGN": "<redacted-signature>",
+def reference_file(locale: str | None) -> Path:
+    names = {
+        "en": "qfpay-openapi-reference.md",
+        "zh-Hant": "qfpay-openapi-reference.zh-Hant.md",
+        "zh-CN": "qfpay-openapi-reference.zh-CN.md",
     }
-    if sign_type == "SHA256":
-        headers["X-QF-SIGNTYPE"] = "SHA256"
+    return REFERENCE_ROOT / names.get(locale or "zh-Hant", names["zh-Hant"])
+
+
+def docs_search(args: dict) -> dict:
+    source = reference_file(args.get("locale"))
+    query_terms = [term.lower() for term in args["query"].split() if term]
+    limit = args.get("limit", 5)
+    matches = []
+    for number, line in enumerate(source.read_text(encoding="utf-8").splitlines(), start=1):
+        if all(term in line.lower() for term in query_terms):
+            matches.append({"line": number, "text": line.strip()[:300]})
+            if len(matches) >= limit:
+                break
     return {
-        "environment": env,
-        "base_url": base_url,
-        "method": method,
-        "path": path,
-        "url": build_url(base_url, path),
-        "execute": execute,
-        "headers": headers,
-        "params": display_params(params, False),
-        "canonical_without_client_key": canonical_string(display_params(params, False)),
-        "encoded_params": encoded_params(display_params(params, False)),
+        "source": source.name,
+        "contract": contract_summary(),
+        "query": args["query"],
+        "count": len(matches),
+        "matches": matches,
     }
 
 
-def send_form_request(base_url, path, method, app_code, sign_type, signature, params):
-    method = method.upper()
+def read_paytypes() -> list[dict]:
+    path = REFERENCE_ROOT / "qfpay-openapi-reference.zh-CN.md"
+    rows = []
+    in_section = False
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if line.startswith("## 完整 pay_type 清单"):
+            in_section = True
+            continue
+        if in_section and line.startswith("## "):
+            break
+        if not in_section or not line.startswith("|"):
+            continue
+        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+        if len(cells) < 4 or cells[1] in {"pay_type", "---"} or not cells[1].startswith("`"):
+            continue
+        rows.append({"channel": cells[0], "pay_type": cells[1].strip("`"), "scenario": cells[2], "entry": cells[3]})
+    return rows
+
+
+def paytypes(args: dict) -> dict:
+    rows = read_paytypes()
+    if args.get("channel"):
+        channel = args["channel"].lower()
+        rows = [row for row in rows if channel in row["channel"].lower()]
+    if args.get("pay_type"):
+        rows = [row for row in rows if row["pay_type"] == args["pay_type"]]
+    return {"contract": contract_summary(), "count": len(rows), "paytypes": rows}
+
+
+def host_environment() -> str:
+    raw = os.getenv("QFPAY_ENV", "qa").strip().lower()
+    if raw not in ENV_ALIASES:
+        raise ValueError("MCP host has an unsupported QFPAY_ENV")
+    env = ENV_ALIASES[raw]
+    if env != "qa" and os.getenv("QFPAY_MCP_ALLOW_NON_QA") != "1":
+        raise ValueError("this MCP is QA/Sandbox-only; configure a policy-controlled gateway for non-QA access")
+    return env
+
+
+def request_identifier(args: dict) -> tuple[str, str]:
+    identifiers = [(name, args[name]) for name in ("syssn", "out_trade_no") if args.get(name)]
+    if len(identifiers) != 1:
+        raise ValueError("provide exactly one of syssn or out_trade_no")
+    return identifiers[0]
+
+
+def transaction_get(args: dict) -> dict:
+    name, identifier = request_identifier(args)
+    env = host_environment()
+    trace_id = hashlib.sha256(f"{env}:{name}:{identifier}".encode("utf-8")).hexdigest()[:16]
+    preview = {
+        "trace_id": trace_id,
+        "environment": env,
+        "operation": "transaction_enquiry",
+        "identifier": {name: mask(identifier)},
+        "request_path": "/trade/v1/query",
+        "state": "ACTION_REQUIRED",
+        "next_step": "Enable a host-controlled QA read scope to run the enquiry; do not create a new order while status is unknown.",
+    }
+    if not args.get("live_query"):
+        return preview
+    if os.getenv("QFPAY_MCP_ALLOW_QUERY") != "1":
+        preview["next_step"] = "The MCP host has not granted query access. Set QFPAY_MCP_ALLOW_QUERY=1 only for the bound QA profile."
+        return preview
+    response = send_query(env, {name: identifier})
+    return {**preview, **response, "live_query": True}
+
+
+def send_query(env: str, params: dict[str, str]) -> dict:
+    """Perform only a server-side, host-authorized transaction enquiry."""
+    app_code = os.getenv("QFPAY_APP_CODE")
+    client_key = os.getenv("QFPAY_CLIENT_KEY")
+    if not app_code or not client_key:
+        raise ValueError("the MCP host needs its bound QFPAY_APP_CODE and QFPAY_CLIENT_KEY to perform an enquiry")
+    sign_type = os.getenv("QFPAY_SIGN_TYPE", "MD5").upper()
+    if sign_type not in {"MD5", "SHA256"}:
+        raise ValueError("MCP host has an unsupported QFPAY_SIGN_TYPE")
+    signature = make_signature(params, client_key, sign_type)
     headers = {
         "Content-Type": "application/x-www-form-urlencoded",
         "X-QF-APPCODE": app_code,
@@ -365,30 +285,25 @@ def send_form_request(base_url, path, method, app_code, sign_type, signature, pa
     }
     if sign_type == "SHA256":
         headers["X-QF-SIGNTYPE"] = "SHA256"
-
-    url = build_url(base_url, path)
-    data = None
-    if method == "GET":
-        url = url + "?" + urlencode([(key, params[key]) for key in sorted(params)])
-    else:
-        data = urlencode([(key, params[key]) for key in sorted(params)]).encode("utf-8")
-
-    req = Request(url, data=data, headers=headers, method=method)
+    request = Request(
+        ENVIRONMENTS[env].rstrip("/") + "/trade/v1/query",
+        data=urlencode(sorted(params.items())).encode("utf-8"),
+        headers=headers,
+        method="POST",
+    )
     try:
-        with urlopen(req, timeout=30, context=ssl_context()) as handle:
-            status = handle.status
+        with urlopen(request, timeout=30, context=ssl_context()) as handle:
             body = handle.read().decode("utf-8", errors="replace")
+            return normalize_query_response(handle.status, body)
     except HTTPError as exc:
-        status = exc.code
-        body = exc.read().decode("utf-8", errors="replace")
-    except URLError as exc:
-        raise ValueError(f"network error: {exc.reason}") from exc
-
-    try:
-        parsed = json.loads(body)
-    except json.JSONDecodeError:
-        parsed = body
-    return {"http_status": status, "body": redact(parsed)}
+        return normalize_query_response(exc.code, exc.read().decode("utf-8", errors="replace"))
+    except (URLError, TimeoutError) as exc:
+        return {
+            "http_status": None,
+            "state": "UNKNOWN",
+            "recovery": "Keep the same identifier and perform Transaction Enquiry again. Do not retry payment, refund, or fulfilment.",
+            "error_class": type(exc).__name__,
+        }
 
 
 def ssl_context():
@@ -403,375 +318,172 @@ def ssl_context():
     return ssl.create_default_context(cafile=cafile)
 
 
-def signed_form_tool(tool_name, args, path, method, params):
-    env, base_url, app_code, client_key = resolve_context(args)
-    sign_type = str(args.get("sign_type") or "MD5").upper()
-    if sign_type not in {"MD5", "SHA256"}:
-        raise ValueError("sign_type must be MD5 or SHA256")
-    execute = bool(args.get("execute", False))
-    check_execution_flags(tool_name, env, args)
-    signature = make_signature(params, client_key, sign_type)
-    result = response_preview(env, base_url, path, method, sign_type, app_code, params, execute)
-    if execute:
-        result["response"] = send_form_request(base_url, path, method, app_code, sign_type, signature, params)
-    return result
-
-
-def require_any(args, names):
-    if not any(args.get(name) for name in names):
-        joined = " or ".join(names)
-        raise ValueError(f"{joined} is required")
-
-
-def require_fields(args, names):
-    missing = [name for name in names if args.get(name) in (None, "")]
-    if missing:
-        raise ValueError(f"missing required field(s): {', '.join(missing)}")
-
-
-def tool_payment(args):
-    require_fields(args, ["pay_type", "txamt", "out_trade_no"])
-    params = build_params(
-        args,
-        [
-            "pay_type",
-            "txamt",
-            "txcurrcd",
-            "out_trade_no",
-            "txdtm",
-            "mchid",
-            "auth_code",
-            "sub_openid",
-            "openid",
-            "notify_url",
-            "return_url",
-            "goods_name",
-            "expired_time",
-            "pay_tag",
-            "limit_pay",
-            "udid",
-            "extend_info",
-        ],
-        {"txcurrcd": "HKD", "txdtm": now_dtm()},
-    )
-    return signed_form_tool("qfpay_payment", args, "/trade/v1/payment", "POST", params)
-
-
-def tool_query(args):
-    if not (args.get("syssn") or args.get("out_trade_no") or (args.get("start_time") and args.get("end_time"))):
-        raise ValueError("provide syssn, out_trade_no, or both start_time and end_time")
-    params = build_params(
-        args,
-        ["syssn", "out_trade_no", "pay_type", "respcd", "start_time", "end_time", "page", "page_size", "mchid"],
-    )
-    return signed_form_tool("qfpay_query", args, "/trade/v1/query", "POST", params)
-
-
-def tool_refund(args):
-    require_fields(args, ["syssn", "out_trade_no", "txamt"])
-    params = build_params(args, ["syssn", "out_trade_no", "txamt", "txdtm", "mchid", "udid"], {"txdtm": now_dtm()})
-    return signed_form_tool("qfpay_refund", args, "/trade/v1/refund", "POST", params)
-
-
-def tool_reversal(args):
-    require_any(args, ["syssn", "out_trade_no"])
-    require_fields(args, ["txamt", "txdtm"])
-    params = build_params(args, ["syssn", "out_trade_no", "txamt", "txdtm", "mchid", "udid"])
-    return signed_form_tool("qfpay_reversal", args, "/trade/v1/reversal", "POST", params)
-
-
-def tool_close(args):
-    require_any(args, ["syssn", "out_trade_no"])
-    require_fields(args, ["txamt", "txdtm"])
-    params = build_params(args, ["syssn", "out_trade_no", "txamt", "txdtm", "mchid", "udid"])
-    return signed_form_tool("qfpay_close", args, "/trade/v1/close", "GET", params)
-
-
-def tool_authtrade(args):
-    require_fields(args, ["syssn", "txamt"])
-    params = build_params(args, ["syssn", "txamt", "txcurrcd", "mchid"])
-    return signed_form_tool("qfpay_authtrade", args, "/trade/v1/authtrade", "POST", params)
-
-
-def tool_unfreeze(args):
-    require_fields(args, ["syssn", "out_trade_no", "txamt", "txdtm"])
-    params = build_params(args, ["syssn", "out_trade_no", "txamt", "txdtm", "mchid"])
-    return signed_form_tool("qfpay_unfreeze", args, "/trade/v1/unfreeze", "POST", params)
-
-
-def tool_payment_intent(args):
-    require_fields(args, ["txamt", "pay_type", "out_trade_no"])
-    params = build_params(
-        args,
-        ["txamt", "pay_type", "out_trade_no", "txcurrcd", "mchid", "return_url", "failed_url", "notify_url"],
-        {"txcurrcd": "HKD"},
-    )
-    return signed_form_tool(
-        "qfpay_payment_intent",
-        args,
-        "/payment_element/v1/create_payment_intent",
-        "POST",
-        params,
-    )
-
-
-def tool_checkout_url(args):
-    require_fields(args, ["txamt", "out_trade_no", "return_url", "failed_url", "notify_url"])
-    env, base_url, app_code, client_key = resolve_context(args)
-    sign_type = str(args.get("sign_type") or "SHA256").upper()
-    if sign_type not in {"MD5", "SHA256"}:
-        raise ValueError("sign_type must be MD5 or SHA256")
-    params = build_params(
-        args,
-        [
-            "paysource",
-            "txamt",
-            "txcurrcd",
-            "out_trade_no",
-            "txdtm",
-            "return_url",
-            "failed_url",
-            "notify_url",
-            "mchntid",
-            "goods_name",
-            "udid",
-            "expired_time",
-            "checkout_expired_time",
-            "limit_pay",
-            "lang",
-            "cancel_url",
-        ],
-        {
-            "paysource": "remotepay_checkout",
-            "txcurrcd": "HKD",
-            "txdtm": now_dtm(),
-        },
-    )
-    params["appcode"] = app_code
-    params["sign_type"] = sign_type
-    signature = make_signature(params, client_key, sign_type)
-    ordered = [(key, params[key]) for key in sorted(params)]
-    ordered.append(("sign", signature))
+def normalize_query_response(http_status: int, body: str) -> dict:
+    try:
+        parsed = json.loads(body)
+    except json.JSONDecodeError:
+        parsed = {}
+    if not isinstance(parsed, dict):
+        parsed = {}
+    code = str(parsed.get("respcd", ""))
+    state = normalize_state(code, parsed)
+    allowed = {"respcd", "resperr", "status", "txamt", "txcurrcd", "syssn", "out_trade_no", "origssn", "orig_syssn"}
+    details = {key: parsed[key] for key in allowed if key in parsed}
     return {
-        "environment": env,
-        "base_url": base_url,
-        "url": build_url(base_url, "/checkstand/#/") + "?" + urlencode(ordered),
-        "redaction_note": "The URL contains a signature and should be handled as sensitive payment data.",
-        "params": display_params(params, False),
+        "http_status": http_status,
+        "state": state,
+        "transaction": redact(details),
+        "recovery": recovery_for(state),
     }
 
 
-def tool_paytypes(args):
-    rows = read_paytypes()
-    channel = str(args.get("channel") or "").lower()
-    pay_type = str(args.get("pay_type") or "")
-    if channel:
-        rows = [row for row in rows if channel in row["channel"].lower()]
-    if pay_type:
-        rows = [row for row in rows if row["pay_type"] == pay_type]
-    return {"count": len(rows), "paytypes": rows}
+def normalize_state(code: str, payload: dict) -> str:
+    if code in {"1143", "1145"}:
+        return "PROCESSING"
+    if code == "1298" or not code:
+        return "UNKNOWN"
+    if code != "0000":
+        return "FAILED"
+    status = str(payload.get("status", payload.get("trade_state", ""))).lower()
+    if status in {"1", "success", "succeeded", "paid"}:
+        return "SUCCESS"
+    if status in {"0", "failed", "failure", "closed", "cancelled"}:
+        return "FAILED"
+    return "ACTION_REQUIRED"
+
+
+def recovery_for(state: str) -> str:
+    if state == "SUCCESS":
+        return "Confirm the verified callback and merchant fulfilment rules before fulfilment."
+    if state == "FAILED":
+        return "Reconcile the original transaction before any new business decision."
+    if state == "PROCESSING":
+        return "Wait, then perform Transaction Enquiry with the same identifier; do not issue a new order."
+    if state == "UNKNOWN":
+        return "Do not retry payment, refund, or fulfilment. Perform Transaction Enquiry using the same identifier."
+    return "The response does not establish a final transaction state. Use a verified callback plus Transaction Enquiry."
+
+
+def contract_summary() -> dict:
+    manifest_path = REFERENCE_ROOT / "contract-manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    contract = manifest["canonical_contract"]
+    return {"version": contract["version"], "published_at": contract["published_at"], "source": contract["url"]}
 
 
 TOOL_HANDLERS = {
-    "qfpay_payment": tool_payment,
-    "qfpay_query": tool_query,
-    "qfpay_refund": tool_refund,
-    "qfpay_reversal": tool_reversal,
-    "qfpay_close": tool_close,
-    "qfpay_authtrade": tool_authtrade,
-    "qfpay_unfreeze": tool_unfreeze,
-    "qfpay_payment_intent": tool_payment_intent,
-    "qfpay_checkout_url": tool_checkout_url,
-    "qfpay_paytypes": tool_paytypes,
+    "qfpay_docs_search": docs_search,
+    "qfpay_paytypes": paytypes,
+    "qfpay_transaction_get": transaction_get,
 }
+TOOL_SCHEMAS = {tool["name"]: tool["inputSchema"] for tool in TOOLS}
 
 
-def read_paytypes():
-    path = Path(__file__).resolve().parents[1] / "references/qfpay-openapi-reference.zh-CN.md"
-    rows = []
-    in_section = False
-    for line in path.read_text(encoding="utf-8").splitlines():
-        if line.startswith("## 完整 pay_type 清单"):
-            in_section = True
-            continue
-        if in_section and line.startswith("## "):
-            break
-        if not in_section or not line.startswith("|"):
-            continue
-        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
-        if len(cells) < 4 or cells[1] in {"pay_type", "---"}:
-            continue
-        if not cells[1].startswith("`"):
-            continue
-        rows.append(
-            {
-                "channel": cells[0],
-                "pay_type": cells[1].strip("`"),
-                "scenario": cells[2],
-                "entry": cells[3],
-            }
-        )
-    return rows
-
-
-def redact(value):
-    if isinstance(value, dict):
-        out = {}
-        for key, child in value.items():
-            lowered = str(key).lower()
-            if any(token in lowered for token in ("client_key", "secret", "token", "auth_code", "openid", "card")):
-                out[key] = "<redacted>"
-            elif lowered in {"sign", "signature", "x-qf-sign"}:
-                out[key] = "<redacted-signature>"
-            else:
-                out[key] = redact(child)
-        return out
-    if isinstance(value, list):
-        return [redact(item) for item in value]
-    return value
-
-
-def mcp_result(data, is_error=False):
+def mcp_result(data: dict, is_error: bool = False) -> dict:
+    safe = redact(data)
     return {
-        "content": [{"type": "text", "text": json.dumps(data, ensure_ascii=False, indent=2)}],
-        "structuredContent": data,
+        "content": [{"type": "text", "text": json.dumps(safe, ensure_ascii=False, indent=2)}],
+        "structuredContent": safe,
         "isError": is_error,
     }
 
 
-def initialize_result(params):
+def initialize_result(params: dict | None) -> dict:
     requested = (params or {}).get("protocolVersion") or PROTOCOL_VERSION
     protocol = requested if requested in {"2024-11-05", "2025-03-26", "2025-06-18"} else PROTOCOL_VERSION
     return {
         "protocolVersion": protocol,
         "capabilities": {"tools": {"listChanged": False}},
-        "serverInfo": {"name": SERVER_NAME, "title": "QFPay OpenAPI Transactions", "version": SERVER_VERSION},
-        "instructions": (
-            "Use execute=false for signed previews and execute=true to call QFPay. "
-            "Credentials come from QFPAY_APP_CODE/QFPAY_CLIENT_KEY or tool arguments. "
-            "Gray and production execution require confirm_production=true; refunds, reversals, close, "
-            "authtrade, and unfreeze also require confirm_funds_action=true."
-        ),
+        "serverInfo": {"name": SERVER_NAME, "title": "QFPay Read-only Local MCP", "version": SERVER_VERSION},
+        "instructions": "This is a local stdio, read-only MCP. It never accepts credentials, merchant/store selection, payment creation, checkout signing, refunds, or other funds actions. QA is the default environment. A Remote MCP requires OAuth, merchant/store scopes, Vault/KMS, approval, audit, and rate-limit controls that are not implemented here.",
     }
 
 
-def handle_tool_call(params):
+def handle_tool_call(params: dict | None) -> dict:
     name = (params or {}).get("name")
     args = (params or {}).get("arguments") or {}
     if name not in TOOL_HANDLERS:
         raise KeyError(f"unknown tool: {name}")
-    if not isinstance(args, dict):
-        raise ValueError("tool arguments must be an object")
     try:
+        validate_schema(args, TOOL_SCHEMAS[name])
         return mcp_result(TOOL_HANDLERS[name](args))
     except Exception as exc:
         return mcp_result({"error": str(exc)}, True)
 
 
-def handle_request(message):
+def handle_request(message: object) -> dict | None:
     if not isinstance(message, dict):
         return error_response(None, -32600, "invalid request")
     method = message.get("method")
     msg_id = message.get("id")
     params = message.get("params")
-    is_notification = "id" not in message
-
+    notification = "id" not in message
     try:
         if method == "initialize":
-            result = initialize_result(params)
+            result = initialize_result(params if isinstance(params, dict) else None)
         elif method == "ping":
             result = {}
         elif method == "tools/list":
             result = {"tools": TOOLS}
         elif method == "tools/call":
-            result = handle_tool_call(params)
+            result = handle_tool_call(params if isinstance(params, dict) else None)
         elif method in {"notifications/initialized", "notifications/cancelled"}:
             return None
         else:
-            return None if is_notification else error_response(msg_id, -32601, f"method not found: {method}")
+            return None if notification else error_response(msg_id, -32601, f"method not found: {method}")
     except KeyError as exc:
         return error_response(msg_id, -32602, str(exc))
     except Exception as exc:
         return error_response(msg_id, -32603, str(exc), {"trace": traceback.format_exc()})
-
-    if is_notification:
-        return None
-    return {"jsonrpc": "2.0", "id": msg_id, "result": result}
+    return None if notification else {"jsonrpc": "2.0", "id": msg_id, "result": result}
 
 
-def error_response(msg_id, code, message, data=None):
+def error_response(msg_id: object, code: int, message: str, data: dict | None = None) -> dict:
     error = {"code": code, "message": message}
     if data and os.getenv("QFPAY_MCP_DEBUG") == "1":
         error["data"] = data
     return {"jsonrpc": "2.0", "id": msg_id, "error": error}
 
 
-def serve():
-    for line in sys.stdin:
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            message = json.loads(line)
-        except json.JSONDecodeError as exc:
-            write_message(error_response(None, -32700, f"parse error: {exc}"))
-            continue
-
-        if isinstance(message, list):
-            responses = [response for item in message if (response := handle_request(item)) is not None]
-            if responses:
-                write_message(responses)
-            continue
-
-        response = handle_request(message)
-        if response is not None:
-            write_message(response)
-
-
-def write_message(message):
+def write_message(message: object) -> None:
     sys.stdout.write(json.dumps(message, ensure_ascii=False, separators=(",", ":")) + "\n")
     sys.stdout.flush()
 
 
-def self_test():
-    init = handle_request(
-        {
-            "jsonrpc": "2.0",
-            "id": 1,
-            "method": "initialize",
-            "params": {"protocolVersion": PROTOCOL_VERSION, "capabilities": {}, "clientInfo": {"name": "test", "version": "0"}},
-        }
-    )
-    assert init["result"]["capabilities"]["tools"] == {"listChanged": False}
-    tools = handle_request({"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
-    assert any(tool["name"] == "qfpay_payment" for tool in tools["result"]["tools"])
-    paytypes = TOOL_HANDLERS["qfpay_paytypes"]({"channel": "FPS"})
-    assert {row["pay_type"] for row in paytypes["paytypes"]} == {"802001", "802010"}
-    payment = TOOL_HANDLERS["qfpay_payment"](
-        {
-            "env": "qa",
-            "app_code": "APP_CODE_FOR_TEST",
-            "client_key": "CLIENT_KEY_FOR_TEST",
-            "pay_type": "802001",
-            "txamt": 100,
-            "out_trade_no": "MCP_SELF_TEST",
-        }
-    )
-    dumped = json.dumps(payment)
-    assert "CLIENT_KEY_FOR_TEST" not in dumped
-    assert payment["execute"] is False
-    gray = TOOL_HANDLERS["qfpay_payment"](
-        {
-            "env": "gray",
-            "app_code": "APP_CODE_FOR_TEST",
-            "client_key": "CLIENT_KEY_FOR_TEST",
-            "pay_type": "802001",
-            "txamt": 100,
-            "out_trade_no": "MCP_GRAY_SELF_TEST",
-        }
-    )
-    assert gray["base_url"] == "https://gray-openapi-hk.qfapi.com"
-    print("mcp server self-test ok")
+def serve() -> None:
+    for line in sys.stdin:
+        if not (line := line.strip()):
+            continue
+        try:
+            request = json.loads(line)
+        except json.JSONDecodeError as exc:
+            write_message(error_response(None, -32700, f"parse error: {exc}"))
+            continue
+        if isinstance(request, list):
+            responses = [response for item in request if (response := handle_request(item)) is not None]
+            if responses:
+                write_message(responses)
+            continue
+        response = handle_request(request)
+        if response is not None:
+            write_message(response)
+
+
+def self_test() -> None:
+    tools = handle_request({"jsonrpc": "2.0", "id": 1, "method": "tools/list"})
+    names = {tool["name"] for tool in tools["result"]["tools"]}
+    assert names == {"qfpay_docs_search", "qfpay_paytypes", "qfpay_transaction_get"}
+    assert "qfpay_payment" not in names
+    assert {row["pay_type"] for row in paytypes({"channel": "FPS"})["paytypes"]} == {"802001", "802010"}
+    invalid = handle_tool_call({"name": "qfpay_transaction_get", "arguments": {"syssn": "1", "app_code": "LEAK"}})
+    assert invalid["isError"] is True
+    assert "LEAK" not in json.dumps(invalid)
+    negative = handle_tool_call({"name": "qfpay_paytypes", "arguments": {"pay_type": "BAD"}})
+    assert negative["isError"] is True
+    preview = handle_tool_call({"name": "qfpay_transaction_get", "arguments": {"out_trade_no": "ORDER_1001"}})
+    assert preview["isError"] is False
+    assert preview["structuredContent"]["environment"] == "qa"
+    print("read-only mcp server self-test ok")
 
 
 if __name__ == "__main__":

@@ -1,4 +1,4 @@
 interface:
-  display_name: "QFPay OpenAPI Transactions"
-  short_description: "Operate QFPay payments safely"
-  default_prompt: "Use $qfpay-openapi-transactions 编写或执行 QFPay 下单、查询、退款或冲正流程，并安全处理 app_code/client_key。"
+  display_name: "QFPay Payment Skills"
+  short_description: "Plan QFPay integrations safely"
+  default_prompt: "Use $qfpay-openapi-transactions 規劃 QFPay Sandbox integration，並說明 selected integration、contract source、unknowns 與 Go-live blockers。"
