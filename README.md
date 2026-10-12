@@ -1,31 +1,33 @@
 # QFPay OpenAPI Transactions Skill
 
-这是一个面向 Codex/Agent 的 QFPay OpenAPI 交易操作 skill。它整理了下单、查询、退款、撤销、冲正、关闭、预授权和回调验签等常用交易流程。
+English | [简体中文](README.zh-CN.md)
 
-## 环境
+A QFPay OpenAPI transaction skill for Codex and other agents. It covers common transaction workflows, including payment creation, queries, refunds, cancellation, reversal, closing, preauthorization, and callback signature verification.
 
-| 环境 | Base URL |
+## Environments
+
+| Environment | Base URL |
 | --- | --- |
 | QA | `https://openapi-int.qfapi.com` |
-| 线上测试 | `https://test-openapi-hk.qfapi.com` |
-| 灰度 | `https://gray-openapi-hk.qfapi.com` |
-| 生产 | `https://openapi-hk.qfapi.com` |
+| Online testing | `https://test-openapi-hk.qfapi.com` |
+| Gray release | `https://gray-openapi-hk.qfapi.com` |
+| Production | `https://openapi-hk.qfapi.com` |
 
-## 目录
+## Repository Structure
 
-- `SKILL.md`：skill 入口和使用流程。
-- `references/qfpay-openapi-reference.zh-CN.md`：中文交易操作参考。
-- `references/qfpay-openapi-reference.md`：英文交易操作参考。
-- `scripts/qfpay_sign.py`：生成签名和 cURL 示例，不会主动发送请求，默认脱敏签名、app code 和常见敏感参数。
-- `scripts/qfpay_mcp_server.py`：本地 stdio MCP server，提供下单、查询、退款、冲正、close、预授权和 pay_type 查询工具。
-- `scripts/check_paytype_coverage.py`：检查中英文参考是否覆盖官方和专项页面里的 pay_type。
-- `agents/openai.yaml`：Agent UI 元数据。
+- `SKILL.md`: Skill entry point and workflow.
+- `references/qfpay-openapi-reference.zh-CN.md`: Transaction reference in Chinese.
+- `references/qfpay-openapi-reference.md`: Transaction reference in English.
+- `scripts/qfpay_sign.py`: Generates signatures and cURL examples without sending requests. Signatures, app codes, and common sensitive parameters are redacted by default.
+- `scripts/qfpay_mcp_server.py`: Local stdio MCP server with tools for payment creation, queries, refunds, reversal, closing, preauthorization, and pay_type lookup.
+- `scripts/check_paytype_coverage.py`: Checks whether both reference documents cover the pay_type values from the official and dedicated documentation pages.
+- `agents/openai.yaml`: Agent UI metadata.
 
-## 快速使用
+## Quick Start
 
-优先让 Agent 阅读 `SKILL.md` 和中文参考文档，再根据目标环境、`app_code`、`client_key`、支付方式和金额执行操作。真实凭证只用于当前操作，回复和日志必须脱敏。
+Have the agent read `SKILL.md` and the reference document in your preferred language first, then perform the operation using the target environment, `app_code`, `client_key`, payment method, and amount. Use real credentials only for the current operation, and redact them in responses and logs.
 
-生成查询接口签名和 cURL 示例：
+Generate a signature and cURL example for the query endpoint:
 
 ```bash
 python3 scripts/qfpay_sign.py \
@@ -36,15 +38,15 @@ python3 scripts/qfpay_sign.py \
   --param syssn=20260902281000020000000015
 ```
 
-默认输出会脱敏 `X-QF-SIGN`、`app_code`、付款码和常见客户敏感参数。只有在本地安全终端需要可执行 cURL/URL 时才加 `--show-sensitive`。
+The default output redacts `X-QF-SIGN`, `app_code`, payment codes, and common sensitive customer parameters. Add `--show-sensitive` only when you need an executable cURL command or URL in a secure local terminal.
 
-不要提交真实 `app_code`、`client_key`、`.env`、签名或接口响应里的敏感数据。
+Do not commit real `app_code` or `client_key` values, `.env` files, signatures, or sensitive data from API responses.
 
 ## MCP Server
 
-本仓库也可以作为本地 stdio MCP server 使用。建议把凭证放在 MCP 客户端的本地环境变量配置里，不要写进仓库。
+This repository can also run as a local stdio MCP server. Store credentials in the MCP client's local environment variable configuration and keep them out of the repository.
 
-示例配置：
+Example configuration:
 
 ```json
 {
@@ -62,9 +64,9 @@ python3 scripts/qfpay_sign.py \
 }
 ```
 
-工具默认 `execute=false`，只返回脱敏签名预览；需要真正请求 QFPay 时传 `execute=true`。灰度和生产环境还必须传 `confirm_production=true`；退款、冲正、close、预授权扣款和解冻还必须传 `confirm_funds_action=true`。
+Tools default to `execute=false` and return only a redacted signature preview. Set `execute=true` to send a request to QFPay. Gray release and production environments also require `confirm_production=true`; refunds, reversal, closing, preauthorization capture, and release also require `confirm_funds_action=true`.
 
-如果本机 Python 报 `CERTIFICATE_VERIFY_FAILED`，先安装/修复 Python CA 证书，或在 MCP 客户端环境里指定 CA bundle：
+If your local Python reports `CERTIFICATE_VERIFY_FAILED`, install or repair its CA certificates, or specify a CA bundle in the MCP client's environment:
 
 ```json
 {
@@ -74,11 +76,11 @@ python3 scripts/qfpay_sign.py \
 }
 ```
 
-server 会优先使用 `QFPAY_CA_BUNDLE`；未设置时，如果当前 Python 安装了 `certifi`，会自动使用 `certifi` 的 CA bundle。
+The server uses `QFPAY_CA_BUNDLE` first. If it is unset and `certifi` is installed in the current Python environment, the server automatically uses its CA bundle.
 
-## 覆盖检查
+## Coverage Check
 
-更新 QFPay 文档后运行：
+After updating the QFPay documentation, run:
 
 ```bash
 python3 scripts/check_paytype_coverage.py
